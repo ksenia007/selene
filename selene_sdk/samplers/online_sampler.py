@@ -45,9 +45,9 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
         Default is 1000. Model is trained on sequences of `sequence_length`
         where genomic features are annotated to the center regions of
         these sequences.
-    center_bin_to_predict : int, optional
+    bin_size : int, optional
         Default is 200. Query the tabix-indexed file for a region of
-        length `center_bin_to_predict`.
+        length `bin_size`.
     feature_thresholds : float [0.0, 1.0], optional
         Default is 0.5. The `feature_threshold` to pass to the
         `GenomicFeatures` object.
@@ -100,10 +100,10 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
     ValueError
             If `mode` is not a valid mode.
     ValueError
-        If the parities of `sequence_length` and `center_bin_to_predict`
+        If the parities of `sequence_length` and `bin_size`
         are not the same.
     ValueError
-        If `sequence_length` is smaller than `center_bin_to_predict` is.
+        If `sequence_length` is smaller than `bin_size` is.
     ValueError
         If the types of `validation_holdout` and `test_holdout` are not
         the same.
@@ -121,8 +121,10 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
                  seed=436,
                  validation_holdout=['chr6', 'chr7'],
                  test_holdout=['chr8', 'chr9'],
-                 sequence_length=1001,
-                 center_bin_to_predict=201,
+                 sequence_length=1000,
+                 bin_size=200,
+                 bins_start=200,
+                 bins_end=800,
                  feature_thresholds=0.5,
                  mode="train",
                  save_datasets=[],
@@ -140,19 +142,19 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
         np.random.seed(self.seed)
         random.seed(self.seed + 1)
 
-        if (sequence_length + center_bin_to_predict) % 2 != 0:
+        if (sequence_length + bin_size) % 2 != 0:
             raise ValueError(
                 "Sequence length of {0} with a center bin length of {1} "
                 "is invalid. These 2 inputs should both be odd or both be "
                 "even.".format(
-                    sequence_length, center_bin_to_predict))
+                    sequence_length, bin_size))
 
-        surrounding_sequence_length = sequence_length - center_bin_to_predict
+        surrounding_sequence_length = sequence_length - bin_size
         if surrounding_sequence_length < 0:
             raise ValueError(
                 "Sequence length of {0} is less than the center bin "
                 "length of {1}.".format(
-                    sequence_length, center_bin_to_predict))
+                    sequence_length, bin_size))
 
         # specifying a test holdout partition is optional
         if test_holdout:
@@ -191,9 +193,22 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
         self.surrounding_sequence_radius = int(
             surrounding_sequence_length / 2)
         self.sequence_length = sequence_length
-        self.bin_radius = int(center_bin_to_predict / 2)
+        self.bin_radius = int(bin_size / 2)
+
+
+        multibins_span = bins_end - bins_start
+        if multibins_span % bin_size != 0:
+            raise ValueError("Please select a bin size and starting & ending "
+                             "point for binning such that `bin_end - "
+                             "bin_start` is divisible by `bin_size`. e.g. "
+                             "a bin size of 200 and a start at position 200, "
+                             "end at position 800 will allow us to query for "
+                             "genomic features in 3 bins.")
+        self.bins_start = bins_start
+        self.bins_end = bins_end
+
         self._start_radius = self.bin_radius
-        if center_bin_to_predict % 2 == 0:
+        if bin_size % 2 == 0:
             self._end_radius = self.bin_radius
         else:
             self._end_radius = self.bin_radius + 1
