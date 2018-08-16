@@ -219,7 +219,8 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
 
         self.target = GenomicFeatures(
             target_path, self._features,
-            feature_thresholds=feature_thresholds)
+            feature_thresholds=feature_thresholds,
+            bin_size=bin_size)
 
         self._save_filehandles = {}
         for mode in save_datasets:

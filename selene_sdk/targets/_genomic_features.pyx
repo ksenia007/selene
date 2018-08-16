@@ -10,6 +10,7 @@ ctypedef np.float32_t FDTYPE_t
 @cython.wraparound(False) 
 def _fast_get_feature_data(int start,
                            int end,
+                           int bin_size,
                            np.ndarray[FDTYPE_t, ndim=1] thresholds,
                            dict feature_index_dict,
                            rows):

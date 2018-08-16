@@ -100,7 +100,7 @@ def _is_positive_row(start, end,
         return False
 
 
-def _get_feature_data(chrom, start, end,
+def _get_feature_data(chrom, start, end, bin_size,
                       thresholds, feature_index_dict, get_feature_rows):
     """
     Generates a target vector for the given query region.
@@ -134,7 +134,7 @@ def _get_feature_data(chrom, start, end,
     """
     rows = get_feature_rows(chrom, start, end)
     return _fast_get_feature_data(
-        start, end, thresholds, feature_index_dict, rows)
+        start, end, thresholds, bin_size, feature_index_dict, rows)
 
 
 def _define_feature_thresholds(feature_thresholds, features):
@@ -245,6 +245,8 @@ class GenomicFeatures(Target):
         A dictionary mapping indices (`int`) to feature names (`str`),
         where the index is the position of the feature in the input
         features.
+    bin_size : int
+        The length of the bin(s) in which we check for features.
     feature_thresholds : dict or None
 
         * `dict` - A dictionary mapping feature names (`str`) to thresholds\
@@ -256,7 +258,7 @@ class GenomicFeatures(Target):
 
     """
 
-    def __init__(self, input_path, features, feature_thresholds=None):
+    def __init__(self, input_path, features, bin_size, feature_thresholds=None):
         """
         Constructs a new `GenomicFeatures` object.
         """
@@ -268,6 +270,8 @@ class GenomicFeatures(Target):
             [(feat, index) for index, feat in enumerate(features)])
 
         self.index_feature_dict = dict(list(enumerate(features)))
+
+        self.bin_size = bin_size
 
         if feature_thresholds is None:
             self.feature_thresholds = None
@@ -371,5 +375,8 @@ class GenomicFeatures(Target):
                 features[ix] = 1
             return features
         return _get_feature_data(
-            chrom, start, end, self._feature_thresholds_vec,
-            self.feature_index_dict, self._query_tabix)
+            chrom, start, end,
+            self.bin_size,
+            self._feature_thresholds_vec,
+            self.feature_index_dict,
+            self._query_tabix)
