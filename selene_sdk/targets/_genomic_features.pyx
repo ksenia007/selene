@@ -11,21 +11,31 @@ ctypedef np.float32_t FDTYPE_t
 def _fast_get_feature_data(int start,
                            int end,
                            int bin_size,
+                           int step_size,
                            np.ndarray[FDTYPE_t, ndim=1] thresholds,
                            dict feature_index_dict,
                            rows):
     cdef int n_features = len(feature_index_dict)
     cdef int query_length = end - start
+    cdef int n_bins = query_length / step_size
     cdef int feature_start, feature_end, index_start, index_end, index_feat
+    cdef int threshold = -1
+    cdef np.ndarray[DTYPE_t, ndim=1] int_thresholds
     cdef np.ndarray[DTYPE_t, ndim=2] encoding = np.zeros(
         (query_length, n_features), dtype=np.int)
+    
     cdef np.ndarray[DTYPE_t, ndim=1] targets = np.zeros(
-        n_features, dtype=np.int)
+        n_features * n_bins, dtype=np.int)
+    
     cdef list row
 
     if rows is None:
-        return np.zeros((n_features,))
-    
+        return targets
+
+    int_thresholds = (thresholds * query_length - 1).clip(min=0).astype(int)
+    if len(np.unique(thresholds)) == 1:
+        threshold = int(np.unique(int_thresholds)[0])
+
     for row in rows:
         feature_start = int(row[1])
         feature_end = int(row[2])
@@ -35,8 +45,18 @@ def _fast_get_feature_data(int start,
         if index_start == index_end:
             index_end += 1
         encoding[index_start:index_end, index_feat] = 1
-
-    thresholds = (thresholds * query_length - 1).clip(min=0)
-    targets = (np.sum(encoding, axis=0) > thresholds.astype(int)).astype(int)
+    for ix, _ in enumerate(range(0, query_length, step_size)):
+        start = ix * bin_size
+        end = ix * bin_size + bin_size
+        bin_encoding = encoding[start:end, :]
+        
+        tgts_start = ix * n_features
+        tgts_end = (ix * n_features) + n_features
+        if threshold > -1:
+            targets[tgts_start:tgts_end] = (
+                np.sum(bin_encoding, axis=0) > threshold).astype(int)
+        else:
+            targets[tgts_start:tgts_end] = (
+                np.sum(bin_encoding, axis=0) > int_thresholds).astype(int)
     return targets
 

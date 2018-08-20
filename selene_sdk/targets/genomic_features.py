@@ -100,7 +100,7 @@ def _is_positive_row(start, end,
         return False
 
 
-def _get_feature_data(chrom, start, end, bin_size,
+def _get_feature_data(chrom, start, end, bin_size, step_size,
                       thresholds, feature_index_dict, get_feature_rows):
     """
     Generates a target vector for the given query region.
@@ -134,7 +134,9 @@ def _get_feature_data(chrom, start, end, bin_size,
     """
     rows = get_feature_rows(chrom, start, end)
     return _fast_get_feature_data(
-        start, end, thresholds, bin_size, feature_index_dict, rows)
+        start, end,
+        bin_size, step_size,
+        thresholds, feature_index_dict, rows)
 
 
 def _define_feature_thresholds(feature_thresholds, features):
@@ -258,7 +260,7 @@ class GenomicFeatures(Target):
 
     """
 
-    def __init__(self, input_path, features, bin_size, feature_thresholds=None):
+    def __init__(self, input_path, features, bin_size, step_size, feature_thresholds=None):
         """
         Constructs a new `GenomicFeatures` object.
         """
@@ -272,6 +274,7 @@ class GenomicFeatures(Target):
         self.index_feature_dict = dict(list(enumerate(features)))
 
         self.bin_size = bin_size
+        self.step_size = step_size
 
         if feature_thresholds is None:
             self.feature_thresholds = None
@@ -377,6 +380,7 @@ class GenomicFeatures(Target):
         return _get_feature_data(
             chrom, start, end,
             self.bin_size,
+            self.step_size,
             self._feature_thresholds_vec,
             self.feature_index_dict,
             self._query_tabix)

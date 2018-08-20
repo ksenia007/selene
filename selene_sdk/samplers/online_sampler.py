@@ -123,6 +123,7 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
                  test_holdout=['chr8', 'chr9'],
                  sequence_length=1000,
                  bin_size=200,
+                 step_size=100,
                  bins_start=200,
                  bins_end=800,
                  feature_thresholds=0.5,
@@ -220,7 +221,8 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
         self.target = GenomicFeatures(
             target_path, self._features,
             feature_thresholds=feature_thresholds,
-            bin_size=bin_size)
+            bin_size=bin_size, step_size=step_size)
+        self.n_bins = int(multibins_span / step_size)
 
         self._save_filehandles = {}
         for mode in save_datasets:

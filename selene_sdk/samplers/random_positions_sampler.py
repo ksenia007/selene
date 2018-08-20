@@ -132,7 +132,10 @@ class RandomPositionsSampler(OnlineSampler):
                  validation_holdout=['chr6', 'chr7'],
                  test_holdout=['chr8', 'chr9'],
                  sequence_length=1000,
-                 center_bin_to_predict=200,
+                 bin_size=200,
+                 step_size=100,
+                 bins_start=200,
+                 bins_end=800,
                  feature_thresholds=0.5,
                  mode="train",
                  save_datasets=[],
@@ -145,7 +148,10 @@ class RandomPositionsSampler(OnlineSampler):
             validation_holdout=validation_holdout,
             test_holdout=test_holdout,
             sequence_length=sequence_length,
-            center_bin_to_predict=center_bin_to_predict,
+            bin_size=bin_size,
+            step_size=step_size,
+            bins_start=bins_start,
+            bins_end=bins_end,
             feature_thresholds=feature_thresholds,
             mode=mode,
             save_datasets=save_datasets,
@@ -214,7 +220,9 @@ class RandomPositionsSampler(OnlineSampler):
             elif self.test_holdout and chrom in self.test_holdout:
                 self._sample_from_mode["test"].indices.append(
                     index)
-
+            else:
+                self._sample_from_mode["train"].indices.append(
+                    index)
             self.sample_from_intervals.append(
                 (chrom,
                  self.sequence_length,
@@ -233,7 +241,7 @@ class RandomPositionsSampler(OnlineSampler):
         bin_start = position - self._start_radius
         bin_end = position + self._end_radius
         retrieved_targets = self.target.get_feature_data(
-            chrom, bin_start, bin_end)
+            chrom, self.bins_start, self.bins_end)
         window_start = bin_start - self.surrounding_sequence_radius
         window_end = bin_end + self.surrounding_sequence_radius
         if window_end - window_start < self.sequence_length:
@@ -314,7 +322,7 @@ class RandomPositionsSampler(OnlineSampler):
 
         """
         sequences = np.zeros((batch_size, self.sequence_length, 4))
-        targets = np.zeros((batch_size, self.n_features))
+        targets = np.zeros((batch_size, self.n_features * self.n_bins))
         n_samples_drawn = 0
         while n_samples_drawn < batch_size:
             sample_index = self._randcache[self.mode]["sample_next"]
