@@ -367,7 +367,8 @@ class GenomicFeatures(Target):
             return a `numpy.ndarray` of zeros.
 
         """
-        if self._feature_thresholds_vec is None:
+        if self._feature_thresholds_vec is None and \
+                self.bin_size == end - start:
             features = np.zeros((end - start))
             rows = self._query_tabix(chrom, start, end)
             if not rows:
@@ -377,6 +378,8 @@ class GenomicFeatures(Target):
                 ix = self.feature_index_map[feature]
                 features[ix] = 1
             return features
+        # TODO: error handling for feature threshold is None
+        # and multiple bins
         return _get_feature_data(
             chrom, start, end,
             self.bin_size,

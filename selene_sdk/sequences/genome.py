@@ -174,7 +174,7 @@ class Genome(Sequence):
             A list of the chromosome names.
 
         """
-        return self.chrs
+        return [c[3:] for c in self.chrs]
 
     def get_chr_lens(self):
         """Gets the name and length of each chromosome sequence in the file.
@@ -185,7 +185,7 @@ class Genome(Sequence):
             A list of tuples of the chromosome names and lengths.
 
         """
-        return [(k, self.len_chrs[k]) for k in self.get_chrs()]
+        return [(k, self.len_chrs["chr" + k]) for k in self.get_chrs()]
 
     def _get_len_chrs(self):
         len_chrs = {}

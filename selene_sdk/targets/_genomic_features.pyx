@@ -26,8 +26,13 @@ def _fast_get_feature_data(int start,
     
     cdef np.ndarray[DTYPE_t, ndim=1] targets = np.zeros(
         n_features * n_bins, dtype=np.int)
-    
+    cdef np.ndarray[DTYPE_t, ndim=1] bin_targets = np.zeros(
+        n_features, dtype=np.int)
+
     cdef list row
+    cdef list used_feature_indices
+    cdef int n_rows = 0
+    cdef set feature_indices = set()
 
     if rows is None:
         return targets
@@ -42,21 +47,27 @@ def _fast_get_feature_data(int start,
         index_start = max(0, feature_start - start)
         index_end = min(feature_end - start, query_length)
         index_feat = feature_index_dict[row[3]]
+        feature_indices.add(index_feat)
         if index_start == index_end:
             index_end += 1
         encoding[index_start:index_end, index_feat] = 1
+        n_rows += 1
+    
+    used_feature_indices = sorted(list(feature_indices))
     for ix, _ in enumerate(range(0, query_length, step_size)):
         start = ix * bin_size
         end = ix * bin_size + bin_size
-        bin_encoding = encoding[start:end, :]
+        bin_encoding = encoding[start:end, used_feature_indices]
         
+        if threshold > -1:
+            bin_targets[used_feature_indices] = (np.sum(
+                bin_encoding, axis=0) > threshold).astype(int)
+        else:
+            bin_targets[used_feature_indices] = (np.sum(
+                bin_encoding, axis=0) > int_thresholds).astype(int)
         tgts_start = ix * n_features
         tgts_end = (ix * n_features) + n_features
-        if threshold > -1:
-            targets[tgts_start:tgts_end] = (
-                np.sum(bin_encoding, axis=0) > threshold).astype(int)
-        else:
-            targets[tgts_start:tgts_end] = (
-                np.sum(bin_encoding, axis=0) > int_thresholds).astype(int)
+        targets[tgts_start:tgts_end] = bin_targets
+        bin_targets = np.zeros(n_features, dtype=np.int)
     return targets
 

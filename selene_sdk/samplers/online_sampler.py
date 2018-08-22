@@ -143,19 +143,29 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
         np.random.seed(self.seed)
         random.seed(self.seed + 1)
 
+        """
         if (sequence_length + bin_size) % 2 != 0:
             raise ValueError(
                 "Sequence length of {0} with a center bin length of {1} "
                 "is invalid. These 2 inputs should both be odd or both be "
                 "even.".format(
                     sequence_length, bin_size))
-
-        surrounding_sequence_length = sequence_length - bin_size
+        """
+        multibins_len = bins_end - bins_start
+        surrounding_sequence_length = sequence_length - multibins_len
         if surrounding_sequence_length < 0:
             raise ValueError(
                 "Sequence length of {0} is less than the center bin "
                 "length of {1}.".format(
                     sequence_length, bin_size))
+
+        if multibins_len % bin_size != 0:
+            raise ValueError("Please select a bin size and starting & ending "
+                             "point for binning such that `bin_end - "
+                             "bin_start` is divisible by `bin_size`. e.g. "
+                             "a bin size of 200 and a start at position 200, "
+                             "end at position 800 will allow us to query for "
+                             "genomic features in 3 bins.")
 
         # specifying a test holdout partition is optional
         if test_holdout:
@@ -194,22 +204,12 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
         self.surrounding_sequence_radius = int(
             surrounding_sequence_length / 2)
         self.sequence_length = sequence_length
-        self.bin_radius = int(bin_size / 2)
 
-
-        multibins_span = bins_end - bins_start
-        if multibins_span % bin_size != 0:
-            raise ValueError("Please select a bin size and starting & ending "
-                             "point for binning such that `bin_end - "
-                             "bin_start` is divisible by `bin_size`. e.g. "
-                             "a bin size of 200 and a start at position 200, "
-                             "end at position 800 will allow us to query for "
-                             "genomic features in 3 bins.")
         self.bins_start = bins_start
         self.bins_end = bins_end
-
+        self.bin_radius = int(multibins_len / 2)
         self._start_radius = self.bin_radius
-        if bin_size % 2 == 0:
+        if multibins_len % 2 == 0:
             self._end_radius = self.bin_radius
         else:
             self._end_radius = self.bin_radius + 1
@@ -222,7 +222,7 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
             target_path, self._features,
             feature_thresholds=feature_thresholds,
             bin_size=bin_size, step_size=step_size)
-        self.n_bins = int(multibins_span / step_size)
+        self.n_bins = int(multibins_len / step_size)
 
         self._save_filehandles = {}
         for mode in save_datasets:

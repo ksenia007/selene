@@ -241,7 +241,7 @@ class RandomPositionsSampler(OnlineSampler):
         bin_start = position - self._start_radius
         bin_end = position + self._end_radius
         retrieved_targets = self.target.get_feature_data(
-            chrom, self.bins_start, self.bins_end)
+            chrom, bin_start, bin_end)
         window_start = bin_start - self.surrounding_sequence_radius
         window_end = bin_end + self.surrounding_sequence_radius
         if window_end - window_start < self.sequence_length:
