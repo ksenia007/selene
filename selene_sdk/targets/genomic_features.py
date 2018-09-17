@@ -11,6 +11,7 @@ Additionally, the column names should be omitted from the file itself
 (i.e. there is no header and the first line in the file is the first
 row of genome coordinates for a feature).
 """
+from time import time
 import types
 
 import tabix
@@ -100,8 +101,8 @@ def _is_positive_row(start, end,
         return False
 
 
-def _get_feature_data(chrom, start, end, bin_size, step_size,
-                      thresholds, feature_index_dict, get_feature_rows):
+def _get_feature_data(start, end, bin_size, step_size,
+                      feature_index_dict, rows):
     """
     Generates a target vector for the given query region.
 
@@ -132,11 +133,14 @@ def _get_feature_data(chrom, start, end, bin_size, step_size,
         `i`th feature is positive, and zero otherwise.
 
     """
-    rows = get_feature_rows(chrom, start, end)
-    return _fast_get_feature_data(
+    t_i = time()
+    out = _fast_get_feature_data(
         start, end,
         bin_size, step_size,
-        thresholds, feature_index_dict, rows)
+        feature_index_dict, rows)
+    t_f = time()
+    print(t_f - t_i)
+    return out
 
 
 def _define_feature_thresholds(feature_thresholds, features):
@@ -380,10 +384,27 @@ class GenomicFeatures(Target):
             return features
         # TODO: error handling for feature threshold is None
         # and multiple bins
+        t_i = time()
+        n_bins = int((end - start - self.bin_size) / self.step_size)
+        targets = np.zeros(self.n_features * n_bins)
+        for i in range(n_bins):
+            bstart = start + i * self.step_size
+            center = int(bstart + self.bin_size / 2)
+            rows = self._query_tabix(chrom, center, center + 1)
+            if rows is None:
+                continue
+
+            tgts_start = i * self.n_features
+            for r in rows:
+                features = np.array(
+                    [int(r) for r in r[3].split(';')])
+                targets[tgts_start + features] = 1
+        t_f = time()
+        print(t_f - t_i)
+        return targets
         return _get_feature_data(
-            chrom, start, end,
+            start, end,
             self.bin_size,
             self.step_size,
-            self._feature_thresholds_vec,
             self.feature_index_dict,
-            self._query_tabix)
+            rows)

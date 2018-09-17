@@ -222,7 +222,7 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
             target_path, self._features,
             feature_thresholds=feature_thresholds,
             bin_size=bin_size, step_size=step_size)
-        self.n_bins = int(multibins_len / step_size)
+        self.n_bins = int((multibins_len - bin_size) / step_size)
 
         self._save_filehandles = {}
         for mode in save_datasets:

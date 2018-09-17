@@ -161,7 +161,7 @@ class RandomPositionsSampler(OnlineSampler):
         self._randcache = {}
         for mode in self.modes:
             self._sample_from_mode[mode] = None
-            self._randcache[mode] = {"cache_indices": None, "sample_next": 0}
+            self._randcache[mode] = {"cache_indices": [], "sample_next": 0}
 
         self.sample_from_intervals = []
         self.interval_lengths = []
@@ -220,7 +220,7 @@ class RandomPositionsSampler(OnlineSampler):
             elif self.test_holdout and chrom in self.test_holdout:
                 self._sample_from_mode["test"].indices.append(
                     index)
-            else:
+            elif '_' not in chrom:
                 self._sample_from_mode["train"].indices.append(
                     index)
             self.sample_from_intervals.append(
@@ -240,8 +240,6 @@ class RandomPositionsSampler(OnlineSampler):
     def _retrieve(self, chrom, position):
         bin_start = position - self._start_radius
         bin_end = position + self._end_radius
-        retrieved_targets = self.target.get_feature_data(
-            chrom, bin_start, bin_end)
         window_start = bin_start - self.surrounding_sequence_radius
         window_end = bin_end + self.surrounding_sequence_radius
         if window_end - window_start < self.sequence_length:
@@ -252,7 +250,7 @@ class RandomPositionsSampler(OnlineSampler):
         strand = self.STRAND_SIDES[random.randint(0, 1)]
         retrieved_seq = \
             self.reference_sequence.get_encoding_from_coords(
-                chrom, window_start, window_end, strand)
+                "chr" + chrom, window_start, window_end, strand)
         if retrieved_seq.shape[0] == 0:
             logger.info("Full sequence centered at {0} position {1} "
                         "could not be retrieved. Sampling again.".format(
@@ -263,7 +261,6 @@ class RandomPositionsSampler(OnlineSampler):
                         "at {0} position {1} are ambiguous ('N'). "
                         "Sampling again.".format(chrom, position))
             return None
-
         if retrieved_seq.shape[0] < self.sequence_length:
             # TODO: remove after investigating this bug.
             print("Warning: sequence retrieved for {0}, {1}, {2}, {3} "
@@ -273,6 +270,9 @@ class RandomPositionsSampler(OnlineSampler):
                       chrom, window_start, window_end, strand,
                       self.sequence_length))
             return None
+
+        retrieved_targets = self.target.get_feature_data(
+            chrom, bin_start, bin_end)
 
         if self.mode in self._save_datasets:
             feature_indices = ';'.join(
