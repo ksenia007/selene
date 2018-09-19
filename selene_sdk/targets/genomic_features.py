@@ -133,14 +133,10 @@ def _get_feature_data(start, end, bin_size, step_size,
         `i`th feature is positive, and zero otherwise.
 
     """
-    t_i = time()
-    out = _fast_get_feature_data(
+    return _fast_get_feature_data(
         start, end,
         bin_size, step_size,
         feature_index_dict, rows)
-    t_f = time()
-    print(t_f - t_i)
-    return out
 
 
 def _define_feature_thresholds(feature_thresholds, features):
@@ -384,7 +380,6 @@ class GenomicFeatures(Target):
             return features
         # TODO: error handling for feature threshold is None
         # and multiple bins
-        t_i = time()
         n_bins = int((end - start - self.bin_size) / self.step_size)
         targets = np.zeros(self.n_features * n_bins)
         for i in range(n_bins):
@@ -399,12 +394,4 @@ class GenomicFeatures(Target):
                 features = np.array(
                     [int(r) for r in r[3].split(';')])
                 targets[tgts_start + features] = 1
-        t_f = time()
-        print(t_f - t_i)
         return targets
-        return _get_feature_data(
-            start, end,
-            self.bin_size,
-            self.step_size,
-            self.feature_index_dict,
-            rows)
