@@ -71,13 +71,12 @@ class EvaluateModel(object):
                  n_test_samples=None,
                  report_gt_feature_n_positives=10,
                  use_cuda=False):
-        self.model = model
         self.criterion = criterion
 
         trained_model = torch.load(
             trained_model_path, map_location=lambda storage, location: storage)
         self.model = load_model_from_state_dict(
-            trained_model["state_dict"], self.model)
+            trained_model["state_dict"], model)
         self.model.eval()
 
         self.sampler = data_sampler
@@ -138,21 +137,21 @@ class EvaluateModel(object):
         batch_losses = []
         all_predictions = []
         for (inputs, targets) in self._test_data:
-
             inputs = torch.Tensor(inputs)
             targets = torch.Tensor(targets)
 
             if self.use_cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
-            inputs = Variable(inputs, volatile=True)
-            targets = Variable(targets, volatile=True)
+            with torch.no_grad():
+                inputs = Variable(inputs)
+                targets = Variable(targets)
 
-            predictions = self.model(inputs.transpose(1, 2))
-            loss = self.criterion(predictions, targets)
+                predictions = self.model(inputs.transpose(1, 2))
+                loss = self.criterion(predictions, targets)
 
-            all_predictions.append(predictions.data.cpu().numpy())
-            batch_losses.append(loss.data[0])
+                all_predictions.append(predictions.data.cpu().numpy())
+                batch_losses.append(loss.item())
         all_predictions = np.vstack(all_predictions)
 
         average_scores = self._metrics.update(

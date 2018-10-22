@@ -1,7 +1,13 @@
+import os
+
 import numpy as np
 from setuptools import find_packages
 from setuptools import setup
 
+
+with open(os.path.join(os.path.dirname(__file__), "README.md"),
+          encoding='utf-8') as readme:
+    long_description = readme.read()
 
 try:
     from Cython.Distutils.extension import Extension
@@ -28,16 +34,20 @@ ext_modules = [genome_module, genomic_features_module]
 cmdclass = {'build_ext': build_ext} if USING_CYTHON else {}
 
 setup(name="selene-sdk",
-      version="0.0.1",
+      version="0.1.3",
+      long_description=long_description,
+      long_description_content_type='text/markdown',
       description=("framework for developing sequence-level "
                    "deep learning networks"),
       packages=find_packages(),
       url="https://github.com/FunctionLab/selene",
       package_data={
-        "selene-sdk": [
-            "interpret/data/gencode_v28_hg38/*",
-            "interpret/data/gencode_v28_hg19/*",
-            "sequences/data/*"
+        "selene_sdk.interpret": [
+            "data/gencode_v28_hg38/*",
+            "data/gencode_v28_hg19/*"
+        ],
+        "selene_sdk.sequences": [
+            "data/*"
         ]
       },
       classifiers=(
@@ -60,6 +70,6 @@ setup(name="selene-sdk",
         "scipy",
         "seaborn",
         "statsmodels",
-        "torch",
+        "torch>=0.4.0",
         "torchvision"
     ])
