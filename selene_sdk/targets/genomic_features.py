@@ -11,6 +11,7 @@ Additionally, the column names should be omitted from the file itself
 (i.e. there is no header and the first line in the file is the first
 row of genome coordinates for a feature).
 """
+from time import time
 import types
 
 import tabix
@@ -100,8 +101,8 @@ def _is_positive_row(start, end,
         return False
 
 
-def _get_feature_data(chrom, start, end,
-                      thresholds, feature_index_dict, get_feature_rows):
+def _get_feature_data(start, end, bin_size, step_size,
+                      feature_index_dict, rows):
     """
     Generates a target vector for the given query region.
 
@@ -132,9 +133,10 @@ def _get_feature_data(chrom, start, end,
         `i`th feature is positive, and zero otherwise.
 
     """
-    rows = get_feature_rows(chrom, start, end)
     return _fast_get_feature_data(
-        start, end, thresholds, feature_index_dict, rows)
+        start, end,
+        bin_size, step_size,
+        feature_index_dict, rows)
 
 
 def _define_feature_thresholds(feature_thresholds, features):
@@ -245,6 +247,8 @@ class GenomicFeatures(Target):
         A dictionary mapping indices (`int`) to feature names (`str`),
         where the index is the position of the feature in the input
         features.
+    bin_size : int
+        The length of the bin(s) in which we check for features.
     feature_thresholds : dict or None
 
         * `dict` - A dictionary mapping feature names (`str`) to thresholds\
@@ -256,7 +260,7 @@ class GenomicFeatures(Target):
 
     """
 
-    def __init__(self, input_path, features, feature_thresholds=None):
+    def __init__(self, input_path, features, bin_size, step_size, feature_thresholds=None):
         """
         Constructs a new `GenomicFeatures` object.
         """
@@ -268,6 +272,9 @@ class GenomicFeatures(Target):
             [(feat, index) for index, feat in enumerate(features)])
 
         self.index_feature_dict = dict(list(enumerate(features)))
+
+        self.bin_size = bin_size
+        self.step_size = step_size
 
         if feature_thresholds is None:
             self.feature_thresholds = None
@@ -360,16 +367,30 @@ class GenomicFeatures(Target):
             return a `numpy.ndarray` of zeros.
 
         """
-        if self._feature_thresholds_vec is None:
+        if self._feature_thresholds_vec is None and \
+                self.bin_size == end - start:
             features = np.zeros((end - start))
             rows = self._query_tabix(chrom, start, end)
             if not rows:
                 return features
             for r in rows:
                 feature = r[3]
-                ix = self.feature_index_map[feature]
+                ix = self.feature_index_dict[feature]
                 features[ix] = 1
             return features
-        return _get_feature_data(
-            chrom, start, end, self._feature_thresholds_vec,
-            self.feature_index_dict, self._query_tabix)
+        # TODO: error handling for feature threshold is None
+        # and multiple bins
+        n_bins = int((end - start - self.bin_size) / self.step_size) + 1
+        targets = np.zeros(self.n_features * n_bins)
+        for i in range(n_bins):
+            bstart = start + i * self.step_size
+            center = int(bstart + self.bin_size / 2)
+            rows = self._query_tabix(chrom, center, center + 1)
+            if rows is None:
+                continue
+
+            tgts_start = i * self.n_features
+            for r in rows:
+                fidx = self.feature_index_dict[r[3]]
+                targets[tgts_start + fidx] = 1
+        return targets

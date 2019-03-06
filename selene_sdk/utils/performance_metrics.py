@@ -6,7 +6,9 @@ from collections import defaultdict, namedtuple
 import logging
 import os
 
+from joblib import Parallel, delayed
 import numpy as np
+from scipy.stats import rankdata
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import roc_auc_score
@@ -198,16 +200,40 @@ def compute_score(prediction, target, metric_fn,
         no features meeting our filtering thresholds, will return
         `(None, [])`.
     """
-    feature_scores = np.ones(target.shape[1]) * np.nan
-    for index, feature_preds in enumerate(prediction.T):
-        feature_targets = target[:, index]
+    def auc_u_test(labels, predictions):
+        len_pos = int(np.sum(labels))
+        len_neg = len(labels) - len_pos
+        rank_value = rankdata(predictions)
+        rank_sum = sum(rank_value[labels == 1])
+        u_value = rank_sum - (len_pos * (len_pos + 1)) / 2
+        auc = u_value / (len_pos * len_neg)
+        return auc
+
+    def _compute_score(feature_preds, feature_targets,
+                      metric_fn, report_gt_feature_n_positives):
         if len(np.unique(feature_targets)) > 0 and \
                np.count_nonzero(feature_targets) > report_gt_feature_n_positives:
             try:
-                feature_scores[index] = metric_fn(
+                auc = metric_fn(
                     feature_targets, feature_preds)
+                return auc
             except ValueError:  # do I need to make this more generic?
-                continue
+                return np.nan
+        else:
+            return np.nan
+
+    with Parallel(n_jobs=39) as parallel:
+        feature_scores = parallel(
+            delayed(_compute_score)(prediction[:, i],
+                                    target[:, i].toarray().ravel(),
+                                    metric_fn,
+                                    report_gt_feature_n_positives)
+            for i in range(prediction.shape[1]))
+    #feature_scores = []
+    #for i in range(prediction.shape[1]):
+    #    feature_scores.append(
+    #        _compute_score(prediction[:, i], target[:, i].toarray().ravel(), metric_fn, report_gt_feature_n_positives))
+
     valid_feature_scores = [s for s in feature_scores if not np.isnan(s)] # Allow 0 or negative values.
     if not valid_feature_scores:
         return None, feature_scores

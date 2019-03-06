@@ -176,7 +176,8 @@ def execute(operations, configs, output_dir):
             if "load_test_set" in configs and configs["load_test_set"] and \
                     "evaluate" in operations:
                 trainer.create_test_set()
-            trainer.train_and_validate()
+            for _ in range(20):
+                trainer.train_and_validate()
 
         elif op == "evaluate":
             if trainer is not None:
@@ -220,7 +221,7 @@ def execute(operations, configs, output_dir):
                         filepath, **vareff_info)
             if "in_silico_mutagenesis" in configs:
                 ism_info = configs["in_silico_mutagenesis"]
-                if "sequence" in ism_info:
+                if "input_sequence" in ism_info:
                     analyze_seqs.in_silico_mutagenesis(**ism_info)
                 elif "input_path" in ism_info:
                     analyze_seqs.in_silico_mutagenesis_from_file(**ism_info)

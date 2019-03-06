@@ -8,19 +8,32 @@ import shutil
 from time import strftime
 from time import time
 
+import h5py
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.utils.data import DataLoader
+from scipy.stats import rankdata
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import average_precision_score
 
 from .utils import initialize_logger
 from .utils import load_model_from_state_dict
 from .utils import PerformanceMetrics
+from .samplers.file_samplers import H5Dataset
 
 logger = logging.getLogger("selene")
+
+
+def auc_u_test(labels, predictions):
+    len_pos = int(np.sum(labels))
+    len_neg = len(labels) - len_pos
+    rank_sum = np.sum(rankdata(predictions)[labels == 1])
+    u_value = rank_sum - (len_pos * (len_pos + 1)) / 2
+    auc = u_value / (len_pos * len_neg)
+    return auc
 
 
 def _metrics_logger(name, out_filepath):
@@ -227,7 +240,7 @@ class TrainModel(object):
         self.data_parallel = data_parallel
 
         if self.data_parallel:
-            self.model = nn.DataParallel(model)
+            self.model = nn.DataParallel(model, device_ids=range(torch.cuda.device_count()))
             logger.debug("Wrapped model in DataParallel")
 
         if self.use_cuda:
@@ -246,15 +259,15 @@ class TrainModel(object):
         self._validation_metrics = PerformanceMetrics(
             self.sampler.get_feature_from_index,
             report_gt_feature_n_positives=report_gt_feature_n_positives,
-            metrics=metrics)
+            metrics=dict(roc_auc_approx=auc_u_test))
 
         if "test" in self.sampler.modes:
-            self._test_data = None
+            self._all_test_seqs = None
             self._n_test_samples = n_test_samples
             self._test_metrics = PerformanceMetrics(
                 self.sampler.get_feature_from_index,
                 report_gt_feature_n_positives=report_gt_feature_n_positives,
-                metrics=metrics)
+                metrics=dict(roc_auc_approx=auc_u_test))
 
         self._start_step = 0
         self._min_loss = float("inf") # TODO: Should this be set when it is used later? Would need to if we want to train model 2x in one run.
@@ -294,6 +307,21 @@ class TrainModel(object):
         self._validation_logger.info("\t".join(["loss"] +
             sorted([x for x in self._validation_metrics.metrics.keys()])))
 
+        self._train_sampler = DataLoader(
+            H5Dataset("/mnt/ceph/users/kchen/multibin_hg38_mats_64kb/train_seed=100.h5"),
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=36,
+            pin_memory=True)
+        """
+        self._validate_sampler = DataLoader(
+            H5Dataset("/mnt/ceph/users/kchen/multibin_hg38_mats_64kb/validate_seed=100.h5"),
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=36,
+            pin_memory=True)
+        """
+
     def _create_validation_set(self, n_samples=None):
         """
         Generates the set of validation examples.
@@ -307,15 +335,15 @@ class TrainModel(object):
         """
         logger.info("Creating validation dataset.")
         t_i = time()
-        self._validation_data, self._all_validation_targets = \
+        self._all_validation_seqs, self._all_validation_targets = \
             self.sampler.get_validation_set(
                 self.batch_size, n_samples=n_samples)
         t_f = time()
         logger.info(("{0} s to load {1} validation examples ({2} validation "
                      "batches) to evaluate after each training step.").format(
                       t_f - t_i,
-                      len(self._validation_data) * self.batch_size,
-                      len(self._validation_data)))
+                      self._all_validation_seqs.shape[0],
+                      self._all_validation_seqs.shape[0] // self.batch_size))
 
     def create_test_set(self):
         """
@@ -328,18 +356,18 @@ class TrainModel(object):
         """
         logger.info("Creating test dataset.")
         t_i = time()
-        self._test_data, self._all_test_targets = \
+        self._all_test_seqs, self._all_test_targets = \
             self.sampler.get_test_set(
                 self.batch_size, n_samples=self._n_test_samples)
         t_f = time()
         logger.info(("{0} s to load {1} test examples ({2} test batches) "
                      "to evaluate after all training steps.").format(
                       t_f - t_i,
-                      len(self._test_data) * self.batch_size,
-                      len(self._test_data)))
-        np.savez_compressed(
-            os.path.join(self.output_dir, "test_targets.npz"),
-            data=self._all_test_targets)
+                      self._all_test_seqs.shape[0],
+                      self._all_test_seqs.shape[0] // self.batch_size))
+        output_file = os.path.join(self.output_dir, "test_targets_and_preds.h5")
+        with h5py.File(output_file, 'w') as fh:
+            fh.create_dataset("targets", data=self._all_test_targets)
 
     def _get_batch(self):
         """
@@ -371,23 +399,43 @@ class TrainModel(object):
             self.optimizer, 'max', patience=16, verbose=True,
             factor=0.8)
 
+        self.model.train()
         time_per_step = []
-        for step in range(self._start_step, self.max_steps):
+        for i, batch in enumerate(self._train_sampler):
             t_i = time()
-            train_loss = self.train()
-            t_f = time()
-            time_per_step.append(t_f - t_i)
+            inputs, targets = Variable(batch[0]), Variable(batch[1])
 
-            if step % self.nth_step_save_checkpoint == 0:
+            if self.use_cuda:
+                inputs, targets = inputs.cuda(), targets.cuda()
+
+            predictions = self.model(inputs.transpose(1, 2))
+            loss = self.criterion(predictions, targets)
+            self.optimizer.zero_grad()
+
+            loss.backward()
+            self.optimizer.step()
+            loss_value = loss.item()
+
+            #del loss
+            #del inputs
+            #del targets
+            #del predictions
+            #torch.cuda.empty_cache()
+
+            t_f = time()
+            if i % 100 == 0:
+                logger.debug("{0}: {1} s to propagate sample".format(i, t_f - t_i))
+            time_per_step.append(t_f - t_i)
+            if i % self.nth_step_save_checkpoint == 0:
                 checkpoint_dict = {
-                    "step": step,
+                    "step": i,
                     "arch": self.model.__class__.__name__,
                     "state_dict": self.model.state_dict(),
                     "min_loss": min_loss,
                     "optimizer": self.optimizer.state_dict()
                 }
                 if self.save_new_checkpoints is not None and \
-                        self.save_new_checkpoints >= step:
+                        self.save_new_checkpoints >= i:
                     checkpoint_filename = "checkpoint-{0}".format(
                         strftime("%m%d%H%M%S"))
                     self._save_checkpoint(
@@ -398,39 +446,37 @@ class TrainModel(object):
                     self._save_checkpoint(
                         checkpoint_dict, False)
 
-            # TODO: Should we have some way to report training stats without running validation?
-            if step and step % self.nth_step_report_stats == 0:
-                logger.info(("[STEP {0}] average number "
-                             "of steps per second: {1:.1f}").format(
-                    step, 1. / np.average(time_per_step)))
-                time_per_step = []
-                valid_scores = self.validate()
-                validation_loss = valid_scores["loss"]
-                self._train_logger.info(train_loss)
-                to_log = [str(validation_loss)]
-                for k in sorted(self._validation_metrics.metrics.keys()):
-                    if k in valid_scores and valid_scores[k]:
-                        to_log.append(str(valid_scores[k]))
-                    else:
-                        to_log.append("NA")
-                self._validation_logger.info("\t".join(to_log))
-                scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
+                if i and i % self.nth_step_report_stats == 0:
+                    logger.info(("[STEP {0}] average number "
+                                 "of steps per second: {1:.1f}").format(
+                        i, 1. / np.average(time_per_step)))
+                    time_per_step = []
+                    self._train_logger.info(loss_value)
+                    logger.info("training loss: {0}".format(loss_value))
+        logger.debug("Epoch completed, running validation.")
+        valid_scores = self.validate()
+        validation_loss = valid_scores["loss"]
+        to_log = [str(validation_loss)]
+        for k in sorted(self._validation_metrics.metrics.keys()):
+            if k in valid_scores and valid_scores[k]:
+                to_log.append(str(valid_scores[k]))
+            else:
+                to_log.append("NA")
+        self._validation_logger.info("\t".join(to_log))
+        scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
 
-                if validation_loss < min_loss:
-                    min_loss = validation_loss
-                    self._save_checkpoint({
-                        "step": step,
-                        "arch": self.model.__class__.__name__,
-                        "state_dict": self.model.state_dict(),
-                        "min_loss": min_loss,
-                        "optimizer": self.optimizer.state_dict()}, True)
-                    logger.debug("Updating `best_model.pth.tar`")
-                logger.info("training loss: {0}".format(train_loss))
-                logger.info("validation loss: {0}".format(validation_loss))
+        if validation_loss < min_loss:
+            min_loss = validation_loss
+            self._save_checkpoint({
+                "step": i,
+                "arch": self.model.__class__.__name__,
+                "state_dict": self.model.state_dict(),
+                "min_loss": min_loss,
+                "optimizer": self.optimizer.state_dict()}, True)
+            logger.debug("Updating `best_model.pth.tar`")
+        logger.info("validation loss: {0}".format(validation_loss))
 
-                # Logging training and validation on same line requires 2 parsers or more complex parser.
-                # Separate logging of train/validate is just a grep for validation/train and then same parser.
-        self.sampler.save_dataset_to_file("train", close_filehandle=True)
+        #self.sampler.save_dataset_to_file("train", close_filehandle=True)
 
     def train(self):
         """
@@ -443,7 +489,7 @@ class TrainModel(object):
 
         """
         self.model.train()
-        self.sampler.set_mode("train")
+        #self.sampler.set_mode("train")
 
         inputs, targets = self._get_batch()
         inputs = torch.Tensor(inputs)
@@ -460,20 +506,26 @@ class TrainModel(object):
         loss = self.criterion(predictions, targets)
 
         self.optimizer.zero_grad()
+
         loss.backward()
         self.optimizer.step()
+        loss_value = loss.item()
 
-        return loss.item()
+        # reduce memory usage
+        del loss
+        del inputs
+        del targets
+        del predictions
+        torch.cuda.empty_cache()
+        return loss_value
 
-    def _evaluate_on_data(self, data_in_batches):
+    def _evaluate_on_data(self, data_seqs, data_targets):
         """
         Makes predictions for some labeled input data.
 
         Parameters
         ----------
-        data_in_batches : list(tuple(numpy.ndarray, numpy.ndarray))
-            A list of tuples of the data, where the first element is
-            the example, and the second element is the label.
+        TODO
 
         Returns
         -------
@@ -484,9 +536,12 @@ class TrainModel(object):
         self.model.eval()
 
         batch_losses = []
-        all_predictions = []
-
-        for (inputs, targets) in data_in_batches:
+        all_predictions = np.zeros((data_targets.shape[0], data_targets.shape[1]))
+        count = 0
+        while count < data_targets.shape[0]:
+            remainder = min(data_targets.shape[0] - count, self.batch_size)
+            inputs = data_seqs[count:count + remainder, :, :]
+            targets = data_targets[count:count + remainder, :].toarray() #.sum(axis=0)
             inputs = torch.Tensor(inputs)
             targets = torch.Tensor(targets)
 
@@ -502,11 +557,17 @@ class TrainModel(object):
                     inputs.transpose(1, 2))
                 loss = self.criterion(predictions, targets)
 
-                all_predictions.append(
-                    predictions.data.cpu().numpy())
+                all_predictions[count:count + remainder, :] = \
+                    predictions.data.cpu().numpy()
 
                 batch_losses.append(loss.item())
-        all_predictions = np.vstack(all_predictions)
+            count += remainder
+
+            del inputs
+            del targets
+            del predictions
+            del loss
+            torch.cuda.empty_cache()
         return np.average(batch_losses), all_predictions
 
     def validate(self):
@@ -521,8 +582,25 @@ class TrainModel(object):
             the validation set.
 
         """
+        """
+        self.model.eval()
+
+        batch_losses = []
+        all_predictions = np.zeros((data_targets.shape[0], data_targets.shape[1]))
+        for i, batch in enumerate(self._validate_sampler):
+            inputs, targets = Variable(batch[0]), Variable(batch[1])
+            if self.use_cuda:
+                inputs, targets = inputs.cuda(), targets.cuda()
+            with torch.no_grad():
+                predictions = self.model(inputs.transpose(1, 2))
+                loss = self.criterion(predictions, targets)
+                all_predictions[i * batch_size:(i + 1) * batch_size, :] = \
+                    predictions.data.cpu().numpy()
+                batch_losses.append(loss.item())
+        """
+
         average_loss, all_predictions = self._evaluate_on_data(
-            self._validation_data)
+            self._all_validation_seqs, self._all_validation_targets)
         average_scores = self._validation_metrics.update(all_predictions,
                                                          self._all_validation_targets)
         for name, score in average_scores.items():
@@ -543,16 +621,23 @@ class TrainModel(object):
             the test set.
 
         """
-        if self._test_data is None:
+        del self._all_validation_seqs
+        del self._all_validation_targets
+
+        if self._all_test_seqs is None:
             self.create_test_set()
         average_loss, all_predictions = self._evaluate_on_data(
-            self._test_data)
+            self._all_test_seqs, self._all_test_targets)
+
+        self._test_metrics.add("average_precision", average_precision_score)
 
         average_scores = self._test_metrics.update(all_predictions,
                                                    self._all_test_targets)
-        np.savez_compressed(
-            os.path.join(self.output_dir, "test_predictions.npz"),
-            data=all_predictions)
+
+
+        output_file = os.path.join(self.output_dir, "test_targets_and_preds.h5")
+        with h5py.File(output_file, 'w') as fh:
+            fh.create_dataset("preds", data=all_predictions)
 
         for name, score in average_scores.items():
             logger.info("test {0}: {1}".format(name, score))
@@ -564,8 +649,8 @@ class TrainModel(object):
 
         average_scores["loss"] = average_loss
 
-        self._test_metrics.visualize(
-            all_predictions, self._all_test_targets, self.output_dir)
+        #self._test_metrics.visualize(
+        #    all_predictions, self._all_test_targets, self.output_dir)
 
         return (average_scores, feature_scores_dict)
 
