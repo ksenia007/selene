@@ -149,7 +149,9 @@ class IntervalsSampler(OnlineSampler):
                  validation_holdout=['chr6', 'chr7'],
                  test_holdout=['chr8', 'chr9'],
                  sequence_length=1000,
-                 center_bin_to_predict=200,
+                 bin_size_to_predict=200,
+                 bins_start=200,
+                 bins_end=800,
                  feature_thresholds=0.5,
                  mode="train",
                  save_datasets=["test"],
@@ -165,7 +167,9 @@ class IntervalsSampler(OnlineSampler):
             validation_holdout=validation_holdout,
             test_holdout=test_holdout,
             sequence_length=sequence_length,
-            center_bin_to_predict=center_bin_to_predict,
+            bin_size_to_predict=bin_size_to_predict,
+            bins_start=bins_start,
+            bins_end=bins_end,
             feature_thresholds=feature_thresholds,
             mode=mode,
             save_datasets=save_datasets,
@@ -312,16 +316,17 @@ class IntervalsSampler(OnlineSampler):
             standards.
 
         """
-        bin_start = position - self._start_radius
-        bin_end = position + self._end_radius
         retrieved_targets = self.target.get_feature_data(
-            chrom, bin_start, bin_end)
+            chrom, self.bins_start, self.bins_end)
         if not self.sample_negative and np.sum(retrieved_targets) == 0:
             logger.info("No features found in region surrounding "
                         "region \"{0}\" position {1}. Sampling again.".format(
                             chrom, position))
             return None
 
+        # TODO: fix this... could be significantly less computation.
+        bin_start = position - self._start_radius
+        bin_end = position + self._end_radius
         window_start = bin_start - self.surrounding_sequence_radius
         window_end = bin_end + self.surrounding_sequence_radius
         strand = self.STRAND_SIDES[random.randint(0, 1)]

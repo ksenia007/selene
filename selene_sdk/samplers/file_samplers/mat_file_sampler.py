@@ -4,6 +4,7 @@ methods.
 """
 import h5py
 import numpy as np
+from scipy import sparse
 import scipy.io
 
 from .file_sampler import FileSampler
@@ -29,7 +30,6 @@ def _load_mat_file(filepath, sequence_key, targets_key=None):
         If the matrix files can be loaded with `scipy.io`,
         the tuple will only be (sequences, targets). Otherwise,
         the 2 matrices and the h5py file handle are returned.
-
     """
     try:  # see if we can load the file using scipy first
         mat = scipy.io.loadmat(filepath)
@@ -153,7 +153,6 @@ class MatFileSampler(FileSampler):
             sequences = self._sample_seqs[:, use_indices, :].astype(float)
         else:
             sequences = self._sample_seqs[:, :, use_indices].astype(float)
-
         if self._seq_batch_axis != 0 or self._seq_alphabet_axis != 2:
             sequences = np.transpose(
                 sequences, (self._seq_batch_axis,
@@ -161,7 +160,7 @@ class MatFileSampler(FileSampler):
                             self._seq_alphabet_axis))
         if self._sample_tgts is not None:
             if self._tgts_batch_axis == 0:
-                targets = self._sample_tgts[use_indices, :].astype(float)
+                targets = self._sample_tgts[use_indices, :]
             else:
                 targets = self._sample_tgts[:, use_indices].astype(float)
                 targets = np.transpose(
@@ -218,8 +217,8 @@ class MatFileSampler(FileSampler):
 
         Returns
         -------
-        sequences_and_targets, targets_matrix : \
-        tuple(list(tuple(numpy.ndarray, numpy.ndarray)), numpy.ndarray)
+        sequences_matrix, targets_matrix : \
+        tuple(numpy.ndarray, numpy.ndarray)
             Tuple containing the list of sequence-target pairs, as well
             as a single matrix with all targets in the same order.
             Note that `sequences_and_targets`'s sequence elements are of
@@ -237,19 +236,22 @@ class MatFileSampler(FileSampler):
                 "initialization. Please use `get_data` instead.")
         if not n_samples:
             n_samples = self.n_samples
-        sequences_and_targets = []
-        targets_mat = []
+        sequences_mat = None
+        targets_mat = None
 
         count = batch_size
         while count < n_samples:
             seqs, tgts = self.sample(batch_size=batch_size)
-            sequences_and_targets.append((seqs, tgts))
-            targets_mat.append(tgts)
+            if targets_mat is None:
+                targets_mat = np.zeros((n_samples, tgts.shape[1]))
+            if sequences_mat is None:
+                sequences_mat = np.zeros((n_samples, seqs.shape[1], seqs.shape[2]))
+            targets_mat[count - batch_size:count, :] = tgts
+            sequences_mat[count - batch_size:count, :, :] = seqs
             count += batch_size
         remainder = batch_size - (count - n_samples)
         seqs, tgts = self.sample(batch_size=remainder)
-        sequences_and_targets.append((seqs, tgts))
-        targets_mat.append(tgts)
-        # TODO: should not assume targets are always integers
-        targets_mat = np.vstack(targets_mat).astype(float)
-        return sequences_and_targets, targets_mat
+        targets_mat[-1 * remainder:, :] = tgts
+        sequences_mat[-1 * remainder:, :, :] = seqs
+        targets_mat = sparse.csr_matrix(targets_mat)
+        return sequences_mat, targets_mat

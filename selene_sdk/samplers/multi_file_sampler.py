@@ -63,7 +63,7 @@ class MultiFileSampler(Sampler):
             output_dir=output_dir)
 
         self._samplers = {
-            "train": train_sampler,
+            "train": None, #train_sampler,
             "validate": validate_sampler
         }
 
