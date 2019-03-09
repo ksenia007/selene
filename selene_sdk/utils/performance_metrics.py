@@ -8,7 +8,6 @@ import os
 
 from joblib import Parallel, delayed
 import numpy as np
-from scipy.stats import rankdata
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import roc_auc_score
@@ -174,7 +173,8 @@ def visualize_precision_recall_curves(
 
 
 def compute_score(prediction, target, metric_fn,
-                  report_gt_feature_n_positives=10):
+                  report_gt_feature_n_positives=10,
+                  num_workers=1):
     """
     Using a user-specified metric, computes the distance between
     two tensors.
@@ -200,14 +200,6 @@ def compute_score(prediction, target, metric_fn,
         no features meeting our filtering thresholds, will return
         `(None, [])`.
     """
-    def auc_u_test(labels, predictions):
-        len_pos = int(np.sum(labels))
-        len_neg = len(labels) - len_pos
-        rank_value = rankdata(predictions)
-        rank_sum = sum(rank_value[labels == 1])
-        u_value = rank_sum - (len_pos * (len_pos + 1)) / 2
-        auc = u_value / (len_pos * len_neg)
-        return auc
 
     def _compute_score(feature_preds, feature_targets,
                       metric_fn, report_gt_feature_n_positives):
@@ -222,18 +214,13 @@ def compute_score(prediction, target, metric_fn,
         else:
             return np.nan
 
-    with Parallel(n_jobs=39) as parallel:
+    with Parallel(n_jobs=num_workers) as parallel:
         feature_scores = parallel(
             delayed(_compute_score)(prediction[:, i],
                                     target[:, i].toarray().ravel(),
                                     metric_fn,
                                     report_gt_feature_n_positives)
             for i in range(prediction.shape[1]))
-    #feature_scores = []
-    #for i in range(prediction.shape[1]):
-    #    feature_scores.append(
-    #        _compute_score(prediction[:, i], target[:, i].toarray().ravel(), metric_fn, report_gt_feature_n_positives))
-
     valid_feature_scores = [s for s in feature_scores if not np.isnan(s)] # Allow 0 or negative values.
     if not valid_feature_scores:
         return None, feature_scores
@@ -312,11 +299,13 @@ class PerformanceMetrics(object):
 
     def __init__(self,
                  get_feature_from_index_fn,
+                 num_workers=1,
                  report_gt_feature_n_positives=10,
                  metrics=dict(roc_auc=roc_auc_score, average_precision=average_precision_score)):
         """
         Creates a new object of the `PerformanceMetrics` class.
         """
+        self._num_workers = num_workers
         self.skip_threshold = report_gt_feature_n_positives
         self.get_feature_from_index = get_feature_from_index_fn
         self.metrics = dict()
@@ -382,7 +371,8 @@ class PerformanceMetrics(object):
         for name, metric in self.metrics.items():
             avg_score, feature_scores = compute_score(
                 prediction, target, metric.fn,
-                report_gt_feature_n_positives=self.skip_threshold)
+                report_gt_feature_n_positives=self.skip_threshold,
+                num_workers=self._num_workers)
             metric.data.append(feature_scores)
             metric_scores[name] = avg_score
         return metric_scores
