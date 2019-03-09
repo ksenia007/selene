@@ -170,13 +170,15 @@ def execute(operations, configs, output_dir):
                 optimizer_kwargs=optim_kwargs)
             if output_dir is not None:
                 train_model_info.bind(output_dir=output_dir)
-
+            n_epochs = 1
+            if "n_epochs" in train_model_info.keywords:
+                n_epochs = train_model_info.pop("n_epochs")
             trainer = instantiate(train_model_info)
             # TODO: will find a better way to handle this in the future
             if "load_test_set" in configs and configs["load_test_set"] and \
                     "evaluate" in operations:
                 trainer.create_test_set()
-            for _ in range(20):
+            for _ in range(n_epochs):
                 trainer.train_and_validate()
 
         elif op == "evaluate":
