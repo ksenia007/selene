@@ -14,7 +14,6 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader
 from scipy.stats import rankdata
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import average_precision_score
@@ -22,7 +21,7 @@ from sklearn.metrics import average_precision_score
 from .utils import initialize_logger
 from .utils import load_model_from_state_dict
 from .utils import PerformanceMetrics
-from .samplers.file_samplers import H5Dataset
+
 
 logger = logging.getLogger("selene")
 
@@ -192,9 +191,9 @@ class TrainModel(object):
                  optimizer_class,
                  optimizer_kwargs,
                  batch_size,
-                 max_steps,
                  report_stats_every_n_steps,
                  output_dir,
+                 max_steps=None,
                  save_checkpoint_every_n_steps=1000,
                  save_new_checkpoints_after_n_steps=None,
                  report_gt_feature_n_positives=10,
@@ -226,14 +225,14 @@ class TrainModel(object):
             self.nth_step_save_checkpoint = save_checkpoint_every_n_steps
 
         self.save_new_checkpoints = save_new_checkpoints_after_n_steps
-
+        """
         logger.info("Training parameters set: batch size {0}, "
                     "number of steps per 'epoch': {1}, "
                     "maximum number of steps: {2}".format(
                         self.batch_size,
                         self.nth_step_report_stats,
                         self.max_steps))
-
+        """
         torch.set_num_threads(cpu_n_threads)
 
         self.use_cuda = use_cuda
@@ -255,11 +254,14 @@ class TrainModel(object):
             os.path.join(self.output_dir, "{0}.log".format(__name__)),
             verbosity=logging_verbosity)
 
+        self._train_sampler = self.sampler._samplers["train"]
+
         self._create_validation_set(n_samples=n_validation_samples)
         self._validation_metrics = PerformanceMetrics(
             self.sampler.get_feature_from_index,
             report_gt_feature_n_positives=report_gt_feature_n_positives,
-            metrics=dict(roc_auc_approx=auc_u_test))
+            metrics=dict(roc_auc_approx=auc_u_test),
+            num_workers=cpu_n_threads)
 
         if "test" in self.sampler.modes:
             self._all_test_seqs = None
@@ -267,9 +269,10 @@ class TrainModel(object):
             self._test_metrics = PerformanceMetrics(
                 self.sampler.get_feature_from_index,
                 report_gt_feature_n_positives=report_gt_feature_n_positives,
-                metrics=dict(roc_auc_approx=auc_u_test))
+                metrics=dict(roc_auc_approx=auc_u_test),
+                num_workers=cpu_n_threads)
 
-        self._start_step = 0
+        # self._start_step = 0
         self._min_loss = float("inf") # TODO: Should this be set when it is used later? Would need to if we want to train model 2x in one run.
         if checkpoint_resume is not None:
             checkpoint = torch.load(
@@ -278,11 +281,11 @@ class TrainModel(object):
 
             self.model = load_model_from_state_dict(
                 checkpoint["state_dict"], self.model)
-
+            """
             self._start_step = checkpoint["step"]
             if self._start_step >= self.max_steps:
                 self.max_steps += self._start_step
-
+            """
             self._min_loss = checkpoint["min_loss"]
             self.optimizer.load_state_dict(
                 checkpoint["optimizer"])
@@ -291,11 +294,11 @@ class TrainModel(object):
                     for k, v in state.items():
                         if isinstance(v, torch.Tensor):
                             state[k] = v.cuda()
-
+            """
             logger.info(
                 ("Resuming from checkpoint: step {0}, min loss {1}").format(
                     self._start_step, self._min_loss))
-
+            """
         self._train_logger = _metrics_logger(
                 "{0}.train".format(__name__), self.output_dir)
         self._validation_logger = _metrics_logger(
@@ -307,20 +310,6 @@ class TrainModel(object):
         self._validation_logger.info("\t".join(["loss"] +
             sorted([x for x in self._validation_metrics.metrics.keys()])))
 
-        self._train_sampler = DataLoader(
-            H5Dataset("/mnt/ceph/users/kchen/multibin_hg38_mats_64kb/train_seed=100.h5"),
-            batch_size=batch_size,
-            shuffle=True,
-            num_workers=36,
-            pin_memory=True)
-        """
-        self._validate_sampler = DataLoader(
-            H5Dataset("/mnt/ceph/users/kchen/multibin_hg38_mats_64kb/validate_seed=100.h5"),
-            batch_size=batch_size,
-            shuffle=True,
-            num_workers=36,
-            pin_memory=True)
-        """
 
     def _create_validation_set(self, n_samples=None):
         """
@@ -338,6 +327,8 @@ class TrainModel(object):
         self._all_validation_seqs, self._all_validation_targets = \
             self.sampler.get_validation_set(
                 self.batch_size, n_samples=n_samples)
+        n_cols = self._all_validation_targets.shape[1]
+        self._check_cols = list(range(0, n_cols, 5))
         t_f = time()
         logger.info(("{0} s to load {1} validation examples ({2} validation "
                      "batches) to evaluate after each training step.").format(
@@ -365,9 +356,11 @@ class TrainModel(object):
                       t_f - t_i,
                       self._all_test_seqs.shape[0],
                       self._all_test_seqs.shape[0] // self.batch_size))
+        """
         output_file = os.path.join(self.output_dir, "test_targets_and_preds.h5")
-        with h5py.File(output_file, 'w') as fh:
-            fh.create_dataset("targets", data=self._all_test_targets)
+        with h5py.File(output_file, 'a') as fh:
+            fh.create_dataset("targets", data=self._all_test_targets.todense())
+        """
 
     def _get_batch(self):
         """
@@ -601,8 +594,9 @@ class TrainModel(object):
 
         average_loss, all_predictions = self._evaluate_on_data(
             self._all_validation_seqs, self._all_validation_targets)
-        average_scores = self._validation_metrics.update(all_predictions,
-                                                         self._all_validation_targets)
+        average_scores = self._validation_metrics.update(
+            all_predictions[:, self._check_cols],
+            self._all_validation_targets[:, self._check_cols])
         for name, score in average_scores.items():
             logger.info("validation {0}: {1}".format(name, score))
 
@@ -629,15 +623,11 @@ class TrainModel(object):
         average_loss, all_predictions = self._evaluate_on_data(
             self._all_test_seqs, self._all_test_targets)
 
-        self._test_metrics.add("average_precision", average_precision_score)
+        self._test_metrics.add_metric("average_precision", average_precision_score)
 
         average_scores = self._test_metrics.update(all_predictions,
                                                    self._all_test_targets)
 
-
-        output_file = os.path.join(self.output_dir, "test_targets_and_preds.h5")
-        with h5py.File(output_file, 'w') as fh:
-            fh.create_dataset("preds", data=all_predictions)
 
         for name, score in average_scores.items():
             logger.info("test {0}: {1}".format(name, score))
@@ -646,6 +636,11 @@ class TrainModel(object):
             self.output_dir, "test_performance.txt")
         feature_scores_dict = self._test_metrics.write_feature_scores_to_file(
             test_performance)
+
+        output_file = os.path.join(self.output_dir, "test_targets_and_preds.h5")
+        with h5py.File(output_file, 'w') as fh:
+            fh.create_dataset("targets", data=self._all_test_targets.todense())
+            fh.create_dataset("preds", data=all_predictions)
 
         average_scores["loss"] = average_loss
 

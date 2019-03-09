@@ -17,6 +17,8 @@ Options:
                             [default: None]
 """
 from docopt import docopt
+import torch
+import torch.multiprocessing
 
 from selene_sdk.utils import load_path
 from selene_sdk.utils import parse_configs_and_run
@@ -28,5 +30,6 @@ if __name__ == "__main__":
         __doc__,
         version=__version__)
 
+    torch.multiprocessing.set_start_method("spawn", force=True)
     configs = load_path(arguments["<config-yml>"], instantiate=False)
     parse_configs_and_run(configs, lr=arguments["--lr"])
