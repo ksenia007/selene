@@ -233,7 +233,7 @@ class TrainModel(object):
                         self.nth_step_report_stats,
                         self.max_steps))
         """
-        torch.set_num_threads(cpu_n_threads)
+        torch.set_num_threads(1)  #cpu_n_threads)
 
         self.use_cuda = use_cuda
         self.data_parallel = data_parallel
