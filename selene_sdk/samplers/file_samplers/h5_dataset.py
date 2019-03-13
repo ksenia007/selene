@@ -1,4 +1,5 @@
 import h5py
+import numpy as np
 import torch
 import torch.utils.data as data
 from torch.utils.data import DataLoader
@@ -13,9 +14,12 @@ class H5Dataset(data.Dataset):
 
     def __getitem__(self, index):
         with h5py.File(self.file_path, 'r') as db:
-            return (
-                torch.from_numpy(db["sequences"][index, :, :].astype(float)).float(),
-                torch.from_numpy(db["targets"][index, :].astype(float)).float())
+            sequence = db["sequences"][index, :, :]
+            ixs, = np.where(np.sum(sequence, axis=1) == 4)
+            sequence = sequence.astype(float)
+            sequence[ixs, :] = 0.25
+            targets = db["targets"][index, :].astype(int)
+            return (torch.from_numpy(sequence).float(), torch.from_numpy(targets).int())
 
     def __len__(self):
         if self.db_len:

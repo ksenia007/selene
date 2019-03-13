@@ -4,7 +4,7 @@ methods.
 """
 import h5py
 import numpy as np
-from scipy import sparse
+#from scipy import sparse
 import scipy.io
 
 from .file_sampler import FileSampler
@@ -148,21 +148,26 @@ class MatFileSampler(FileSampler):
         self._sample_next += batch_size
         use_indices = sorted(use_indices)
         if self._seq_batch_axis == 0:
-            sequences = self._sample_seqs[use_indices, :, :].astype(float)
+            sequences = self._sample_seqs[use_indices, :, :]
         elif self._seq_batch_axis == 1:
-            sequences = self._sample_seqs[:, use_indices, :].astype(float)
+            sequences = self._sample_seqs[:, use_indices, :]
         else:
-            sequences = self._sample_seqs[:, :, use_indices].astype(float)
+            sequences = self._sample_seqs[:, :, use_indices]
         if self._seq_batch_axis != 0 or self._seq_alphabet_axis != 2:
             sequences = np.transpose(
                 sequences, (self._seq_batch_axis,
                             self._seq_final_axis,
                             self._seq_alphabet_axis))
+        sequences_sum = np.sum(sequences, axis=2)
+        recode = np.where(sequences_sum == 4)
+        sequences = sequences.astype(float)
+        sequences[recode[0], recode[1], :] = 0.25
+
         if self._sample_tgts is not None:
             if self._tgts_batch_axis == 0:
                 targets = self._sample_tgts[use_indices, :]
             else:
-                targets = self._sample_tgts[:, use_indices].astype(float)
+                targets = self._sample_tgts[:, use_indices]
                 targets = np.transpose(
                     targets, (1, 0))
             return (sequences, targets)
@@ -242,10 +247,10 @@ class MatFileSampler(FileSampler):
         count = batch_size
         while count < n_samples:
             seqs, tgts = self.sample(batch_size=batch_size)
-            if targets_mat is None:
-                targets_mat = np.zeros((n_samples, tgts.shape[1]))
             if sequences_mat is None:
-                sequences_mat = np.zeros((n_samples, seqs.shape[1], seqs.shape[2]))
+                sequences_mat = np.zeros((n_samples, seqs.shape[1], seqs.shape[2]), dtype=float)
+            if targets_mat is None:
+                targets_mat = np.zeros((n_samples, tgts.shape[1]), dtype=bool)
             targets_mat[count - batch_size:count, :] = tgts
             sequences_mat[count - batch_size:count, :, :] = seqs
             count += batch_size
@@ -253,5 +258,5 @@ class MatFileSampler(FileSampler):
         seqs, tgts = self.sample(batch_size=remainder)
         targets_mat[-1 * remainder:, :] = tgts
         sequences_mat[-1 * remainder:, :, :] = seqs
-        targets_mat = sparse.csr_matrix(targets_mat)
+        #targets_mat = sparse.csr_matrix(targets_mat)
         return sequences_mat, targets_mat

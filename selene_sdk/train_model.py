@@ -534,7 +534,7 @@ class TrainModel(object):
         while count < data_targets.shape[0]:
             remainder = min(data_targets.shape[0] - count, self.batch_size)
             inputs = data_seqs[count:count + remainder, :, :]
-            targets = data_targets[count:count + remainder, :].toarray() #.sum(axis=0)
+            targets = data_targets[count:count + remainder, :].astype(int)
             inputs = torch.Tensor(inputs)
             targets = torch.Tensor(targets)
 
