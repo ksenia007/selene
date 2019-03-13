@@ -11,7 +11,6 @@ Additionally, the column names should be omitted from the file itself
 (i.e. there is no header and the first line in the file is the first
 row of genome coordinates for a feature).
 """
-from time import time
 import types
 
 import tabix
@@ -369,19 +368,19 @@ class GenomicFeatures(Target):
         """
         if self._feature_thresholds_vec is None and \
                 self.bin_size == end - start:
-            features = np.zeros((end - start))
+            features = np.zeros((end - start), dtype=bool)
             rows = self._query_tabix(chrom, start, end)
             if not rows:
                 return features
             for r in rows:
                 feature = r[3]
                 ix = self.feature_index_dict[feature]
-                features[ix] = 1
+                features[ix] = False
             return features
         # TODO: error handling for feature threshold is None
         # and multiple bins
         n_bins = int((end - start - self.bin_size) / self.step_size) + 1
-        targets = np.zeros(self.n_features * n_bins)
+        targets = np.zeros(self.n_features * n_bins, dtype=bool)
         for i in range(n_bins):
             bstart = start + i * self.step_size
             center = int(bstart + self.bin_size / 2)
@@ -392,5 +391,5 @@ class GenomicFeatures(Target):
             tgts_start = i * self.n_features
             for r in rows:
                 fidx = self.feature_index_dict[r[3]]
-                targets[tgts_start + fidx] = 1
+                targets[tgts_start + fidx] = True
         return targets
