@@ -258,11 +258,6 @@ class RandomPositionsSampler(OnlineSampler):
                         "could not be retrieved. Sampling again.".format(
                             chrom, position))
             return None
-        elif np.sum(retrieved_seq) / float(retrieved_seq.shape[0]) < 0.60:
-            logger.info("Over 30% of the bases in the sequence centered "
-                        "at {0} position {1} are ambiguous ('N'). "
-                        "Sampling again.".format(chrom, position))
-            return None
         if retrieved_seq.shape[0] < self.sequence_length:
             # TODO: remove after investigating this bug.
             print("Warning: sequence retrieved for {0}, {1}, {2}, {3} "
@@ -275,7 +270,6 @@ class RandomPositionsSampler(OnlineSampler):
 
         retrieved_targets = self.target.get_feature_data(
             chrom, bin_start, bin_end)
-
         if self.mode in self._save_datasets:
             feature_indices = ';'.join(
                 [str(f) for f in np.nonzero(retrieved_targets)[0]])
@@ -323,8 +317,8 @@ class RandomPositionsSampler(OnlineSampler):
             where :math:`F` is the number of features.
 
         """
-        sequences = np.zeros((batch_size, self.sequence_length, 4))
-        targets = np.zeros((batch_size, self.n_features * self.n_bins))
+        sequences = np.zeros((batch_size, self.sequence_length, 4), dtype=bool)
+        targets = np.zeros((batch_size, self.n_features * self.n_bins), dtype=bool)
         n_samples_drawn = 0
         while n_samples_drawn < batch_size:
             sample_index = self._randcache[self.mode]["sample_next"]

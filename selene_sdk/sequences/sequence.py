@@ -38,7 +38,7 @@ def sequence_to_encoding(sequence, base_to_index, bases_arr):
         the size of the sequence alphabet.
 
     """
-    return _fast_sequence_to_encoding(sequence, base_to_index, len(bases_arr))
+    return _fast_sequence_to_encoding(sequence, base_to_index, len(bases_arr)).astype(bool)
 
 
 def _get_base_index(encoding_row):
