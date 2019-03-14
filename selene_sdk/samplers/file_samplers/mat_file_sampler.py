@@ -157,7 +157,7 @@ class MatFileSampler(FileSampler):
                 sequences, (self._seq_batch_axis,
                             self._seq_final_axis,
                             self._seq_alphabet_axis))
-        sequences = np.unpackbits(sequences)
+        sequences = np.unpackbits(sequences,axis=-2)
         nulls = np.sum(sequences, axis=-1) == 4
         sequences = sequences.astype(float)
         sequences[nulls, :] = 0.25
@@ -169,7 +169,7 @@ class MatFileSampler(FileSampler):
                 targets = self._sample_tgts[:, use_indices]
                 targets = np.transpose(
                     targets, (1, 0))
-            targets = np.unpackbits(targets).astype(bool)
+            targets = np.unpackbits(targets,axis=-1).astype(bool)
             return (sequences, targets)
         return sequences,
 
