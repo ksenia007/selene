@@ -19,6 +19,7 @@ from docopt import docopt
 import os
 
 import h5py
+import numpy as np
 
 from selene_sdk.utils import load_path, instantiate
 
@@ -43,20 +44,31 @@ if __name__ == "__main__":
                                     arguments["<mode>"],
                                     arguments["<rseed>"],
                                     configs["batch_size"] * configs["n_steps"])), "a") as fh:
-        seqs = fh.create_dataset("sequences", (16, seq_len, 4), dtype='bool', maxshape=(None, seq_len, 4))
-        # deepsea2 n_features: 2002 * 495
-        # cistrome mouse n_features: 16441 * 248
-        tgts = fh.create_dataset(
-            "targets",
-            (16, configs["n_features"]),
-            dtype='bool',
-            maxshape=(None, configs["n_features"]))
+        seqs = None
+        tgts = None
         for i in range(configs["n_steps"]):
             if i % 50 == 0:
                 print("processing step {0} for {1} records".format(i, arguments["<mode>"]))
             sequences, targets = data_sampler.sample(batch_size=configs["batch_size"])
+            sb = np.packbits(sequences, axis=1)
+            tb = np.packbits(targets, axis=1)
+            print(sb.shape, tb.shape)
+            if seqs is None:
+                seqs = fh.create_dataset(
+                    "sequences",
+                    (16, sb.shape[1], 4),
+                    dtype='int',
+                    maxshape=(None, sb.shape[1], 4))
+            if tgts is None:
+                # deepsea2 n_features: 2002 * 495
+                # cistrome mouse n_features: 16441 * 248
+                tgts = fh.create_dataset(
+                    "targets",
+                    (16, tb.shape[1]),
+                    dtype='int',
+                    maxshape=(None, tb.shape[1]))
             if i > 0:
                 seqs.resize(seqs.shape[0] + 16, axis=0)
                 tgts.resize(tgts.shape[0] + 16, axis=0)
-            seqs[-16:] = sequences
-            tgts[-16:] = targets
+            seqs[-16:] = sb
+            tgts[-16:] = tb
