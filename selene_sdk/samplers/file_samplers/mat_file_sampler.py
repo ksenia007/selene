@@ -4,7 +4,6 @@ methods.
 """
 import h5py
 import numpy as np
-#from scipy import sparse
 import scipy.io
 
 from .file_sampler import FileSampler
@@ -158,10 +157,10 @@ class MatFileSampler(FileSampler):
                 sequences, (self._seq_batch_axis,
                             self._seq_final_axis,
                             self._seq_alphabet_axis))
-        sequences_sum = np.sum(sequences, axis=2)
-        recode = np.where(sequences_sum == 4)
+        sequences = np.unpackbits(sequences)
+        nulls = np.sum(sequences, axis=-1) == 4
         sequences = sequences.astype(float)
-        sequences[recode[0], recode[1], :] = 0.25
+        sequences[nulls, :] = 0.25
 
         if self._sample_tgts is not None:
             if self._tgts_batch_axis == 0:
@@ -170,6 +169,7 @@ class MatFileSampler(FileSampler):
                 targets = self._sample_tgts[:, use_indices]
                 targets = np.transpose(
                     targets, (1, 0))
+            targets = np.unpackbits(targets).astype(bool)
             return (sequences, targets)
         return sequences,
 
@@ -258,5 +258,4 @@ class MatFileSampler(FileSampler):
         seqs, tgts = self.sample(batch_size=remainder)
         targets_mat[-1 * remainder:, :] = tgts
         sequences_mat[-1 * remainder:, :, :] = seqs
-        #targets_mat = sparse.csr_matrix(targets_mat)
         return sequences_mat, targets_mat
