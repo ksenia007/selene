@@ -575,23 +575,6 @@ class TrainModel(object):
             the validation set.
 
         """
-        """
-        self.model.eval()
-
-        batch_losses = []
-        all_predictions = np.zeros((data_targets.shape[0], data_targets.shape[1]))
-        for i, batch in enumerate(self._validate_sampler):
-            inputs, targets = Variable(batch[0]), Variable(batch[1])
-            if self.use_cuda:
-                inputs, targets = inputs.cuda(), targets.cuda()
-            with torch.no_grad():
-                predictions = self.model(inputs.transpose(1, 2))
-                loss = self.criterion(predictions, targets)
-                all_predictions[i * batch_size:(i + 1) * batch_size, :] = \
-                    predictions.data.cpu().numpy()
-                batch_losses.append(loss.item())
-        """
-
         average_loss, all_predictions = self._evaluate_on_data(
             self._all_validation_seqs, self._all_validation_targets)
         average_scores = self._validation_metrics.update(
