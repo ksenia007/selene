@@ -4,7 +4,7 @@ Description:
     dataset from a tabix-indexed BED file of peaks and a genome.
 
 Usage:
-    write_multibin_mats.py <config-yml> <mode> <rseed>
+    write_multibin_mats.py <config-yml> <mode> <n-steps> <rseed>
     write_multibin_mats.py -h | --help
 
 Options:
@@ -13,6 +13,8 @@ Options:
     <config-yml>            Sampler parameters
     <mode>                  Sampling mode. Must be one of
                             {"train", "validate", "test"}.
+    <n-steps>               Number of steps to take (total number of data
+                            samples generated will be batch_size * n_steps
     <rseed>                 The random seed to use during sampling.
 """
 from docopt import docopt
@@ -28,25 +30,27 @@ if __name__ == "__main__":
     arguments = docopt(
         __doc__,
         version="1.0")
-
+    print(arguments)
     configs = load_path(arguments["<config-yml>"], instantiate=False)
     configs["sampler"].bind(
         mode=arguments["<mode>"],
         seed=int(arguments["<rseed>"]),
         save_datasets=[])
     output_dir = configs["sampler"].keywords["output_dir"]
-    seq_len = configs["sampler"].keywords["sequence_length"]
-
     data_sampler = instantiate(configs["sampler"])
+
+    seq_len = configs["sampler"].keywords["sequence_length"]
+    batch_size = configs["batch_size"]
+    n_steps = int(arguments["<n-steps>"])
 
     with h5py.File(os.path.join(output_dir,
                                 "{0}_seed={1}_N={2}.h5".format(
                                     arguments["<mode>"],
                                     arguments["<rseed>"],
-                                    configs["batch_size"] * configs["n_steps"])), "a") as fh:
+                                    batch_size * n_steps)), "a") as fh:
         seqs = None
         tgts = None
-        for i in range(configs["n_steps"]):
+        for i in range(n_steps):
             if i % 50 == 0:
                 print("processing step {0} for {1} records".format(i, arguments["<mode>"]))
             sequences, targets = data_sampler.sample(batch_size=configs["batch_size"])
@@ -56,19 +60,19 @@ if __name__ == "__main__":
             if seqs is None:
                 seqs = fh.create_dataset(
                     "sequences",
-                    (16, sb.shape[1], 4),
+                    (batch_size, sb.shape[1], 4),
                     dtype='int',
                     maxshape=(None, sb.shape[1], 4))
             if tgts is None:
                 # deepsea2 n_features: 2002 * 495
-                # cistrome mouse n_features: 16441 * 248
+                # cistrome mouse n_features: 64441 * 248
                 tgts = fh.create_dataset(
                     "targets",
-                    (16, tb.shape[1]),
+                    (batch_size, tb.shape[1]),
                     dtype='int',
                     maxshape=(None, tb.shape[1]))
             if i > 0:
-                seqs.resize(seqs.shape[0] + 16, axis=0)
-                tgts.resize(tgts.shape[0] + 16, axis=0)
-            seqs[-16:] = sb
-            tgts[-16:] = tb
+                seqs.resize(seqs.shape[0] + batch_size, axis=0)
+                tgts.resize(tgts.shape[0] + batch_size, axis=0)
+            seqs[-batch_size:] = sb
+            tgts[-batch_size:] = tb
