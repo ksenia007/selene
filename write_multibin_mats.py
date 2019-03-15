@@ -57,7 +57,7 @@ if __name__ == "__main__":
                 seqs = fh.create_dataset(
                     "sequences",
                     (16, sb.shape[1], 4),
-                    dtype='int',
+                    dtype='uint8',
                     maxshape=(None, sb.shape[1], 4))
             if tgts is None:
                 # deepsea2 n_features: 2002 * 495
@@ -65,7 +65,7 @@ if __name__ == "__main__":
                 tgts = fh.create_dataset(
                     "targets",
                     (16, tb.shape[1]),
-                    dtype='int',
+                    dtype='uint8',
                     maxshape=(None, tb.shape[1]))
             if i > 0:
                 seqs.resize(seqs.shape[0] + 16, axis=0)
