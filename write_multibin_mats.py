@@ -56,19 +56,19 @@ if __name__ == "__main__":
             if seqs is None:
                 seqs = fh.create_dataset(
                     "sequences",
-                    (16, sb.shape[1], 4),
-                    dtype='uint8',
-                    maxshape=(None, sb.shape[1], 4))
+                    (configs["batch_size"] * configs["n_steps"], sb.shape[1], 4),
+                    dtype='uint8')
+            #        maxshape=(None, sb.shape[1], 4))
             if tgts is None:
                 # deepsea2 n_features: 2002 * 495
                 # cistrome mouse n_features: 16441 * 248
                 tgts = fh.create_dataset(
                     "targets",
-                    (16, tb.shape[1]),
-                    dtype='uint8',
-                    maxshape=(None, tb.shape[1]))
-            if i > 0:
-                seqs.resize(seqs.shape[0] + 16, axis=0)
-                tgts.resize(tgts.shape[0] + 16, axis=0)
-            seqs[-16:] = sb
-            tgts[-16:] = tb
+                    (configs["batch_size"] * configs["n_steps"], tb.shape[1]),
+                    dtype='uint8')
+            #        maxshape=(None, tb.shape[1]))
+            #if i > 0:
+            #    seqs.resize(seqs.shape[0] + 16, axis=0)
+            #    tgts.resize(tgts.shape[0] + 16, axis=0)
+            seqs[i*configs["batch_size"]:(i+1)*configs["batch_size"]] = sb
+            tgts[i*configs["batch_size"]:(i+1)*configs["batch_size"],:] = tb
