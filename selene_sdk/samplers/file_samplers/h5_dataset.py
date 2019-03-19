@@ -14,11 +14,11 @@ class H5Dataset(data.Dataset):
 
     def __getitem__(self, index):
         with h5py.File(self.file_path, 'r') as db:
-            sequence = np.unpackbits(db["sequences"][index, :, :])
+            sequence = np.unpackbits(db["sequences"][index, :, :],axis=-2)
             nulls = np.sum(sequence, axis=-1) == 4
             sequence = sequence.astype(float)
             sequence[nulls, :] = 0.25
-            targets = np.unpackbits(db["targets"][index, :]).astype(float)
+            targets = np.unpackbits(db["targets"][index, :],axis=-1).astype(float)
             return (torch.from_numpy(sequence).float(), torch.from_numpy(targets).float())
 
     def __len__(self):
