@@ -54,6 +54,8 @@ if __name__ == "__main__":
             tb = np.packbits(targets, axis=1)
             print(sb.shape, tb.shape)
             if seqs is None:
+                sequences_length =  sequences.shape[1]
+                fh.create_dataset("sequences_length",data=sequences_length)
                 seqs = fh.create_dataset(
                     "sequences",
                     (configs["batch_size"] * configs["n_steps"], sb.shape[1], 4),
@@ -62,6 +64,8 @@ if __name__ == "__main__":
             if tgts is None:
                 # deepsea2 n_features: 2002 * 495
                 # cistrome mouse n_features: 16441 * 248
+                targets_length = targets.shape[1]
+                fh.create_dataset("targets_length",data=targets_length)
                 tgts = fh.create_dataset(
                     "targets",
                     (configs["batch_size"] * configs["n_steps"], tb.shape[1]),
