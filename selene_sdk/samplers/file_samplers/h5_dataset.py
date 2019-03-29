@@ -57,7 +57,8 @@ class H5DataLoader(DataLoader):
          super(H5DataLoader, self).__init__(H5Dataset(filepath),**args)
 
     def get_data_and_targets(self, batch_size, n_samples=None):
-        return self.dataset[:n_samples]
+        sequences, targets = self.dataset[:n_samples]
+        return sequences.numpy(),targets.numpy()
 
 
 def h5_dataloader(filepath,
