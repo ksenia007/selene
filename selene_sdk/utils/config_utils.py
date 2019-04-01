@@ -14,6 +14,7 @@ import types
 import torch
 
 from . import instantiate
+from . import load_path
 
 
 def module_from_file(path):
@@ -338,8 +339,8 @@ def parse_configs_and_run(configs_file,
             current_run_output_dir))
 
     config_out = "{0}_lr={1}.yml".format(
-        os.path.basename(config_file)[:-4], lr)
-    copyfile(config_file, os.path.join(current_run_output_dir, config_out))
+        os.path.basename(configs_file)[:-4], lr)
+    copyfile(configs_file, os.path.join(current_run_output_dir, config_out))
     if "random_seed" in configs:
         seed = configs["random_seed"]
         torch.manual_seed(seed)
