@@ -5,6 +5,8 @@ running operations in _Selene_.
 """
 import os
 import importlib
+from shutil import copyfile
+from shutil import copytree
 import sys
 from time import strftime
 import types
@@ -58,7 +60,7 @@ def module_from_dir(path):
     return importlib.import_module(module_dir)
 
 
-def initialize_model(model_configs, train=True, lr=None):
+def initialize_model(model_configs, output_dir, train=True, lr=None):
     """
     Initialize model (and associated criterion, optimizer)
 
@@ -97,9 +99,15 @@ def initialize_model(model_configs, train=True, lr=None):
 
     module = None
     if os.path.isdir(import_model_from):
+        import_model_from = import_model_from.rstrip(os.sep)
         module = module_from_dir(import_model_from)
+        copytree(import_model_from,
+                 os.path.join(output_dir, os.path.basename(import_model_from)))
     else:
         module = module_from_file(import_model_from)
+        copyfile(import_model_from,
+                 os.path.join(output_dir, os.path.basename(import_model_from)))
+
     model_class = getattr(module, model_class_name)
 
     model = model_class(**model_configs["class_args"])
@@ -152,7 +160,10 @@ def execute(operations, configs, output_dir):
     for op in operations:
         if op == "train":
             model, loss, optim, optim_kwargs = initialize_model(
-                configs["model"], train=True, lr=configs["lr"])
+                configs["model"],
+                output_dir,
+                train=True,
+                lr=configs["lr"])
 
             sampler_info = configs["sampler"]
             if output_dir is not None:
@@ -187,7 +198,7 @@ def execute(operations, configs, output_dir):
 
             if not model:
                 model, loss = initialize_model(
-                    configs["model"], train=False)
+                    configs["model"], output_dir, train=False)
             if "evaluate_model" in configs:
                 sampler_info = configs["sampler"]
 
@@ -206,7 +217,7 @@ def execute(operations, configs, output_dir):
         elif op == "analyze":
             if not model:
                 model, _ = initialize_model(
-                    configs["model"], train=False)
+                    configs["model"], output_dir, train=False)
 
             analyze_seqs_info = configs["analyze_sequences"]
             analyze_seqs_info.bind(model=model)
@@ -243,7 +254,7 @@ def execute(operations, configs, output_dir):
                 analyze_seqs.get_predictions_for_fasta_file(**predict_info)
 
 
-def parse_configs_and_run(configs,
+def parse_configs_and_run(configs_file,
                           create_subdirectory=True,
                           lr=None):
     """
@@ -297,6 +308,7 @@ def parse_configs_and_run(configs,
         to the dirs specified in each operation's configuration.
 
     """
+    configs = load_path(configs_file, instantiate=False)
     operations = configs["ops"]
 
     if "train" in operations and "lr" not in configs and lr != "None":
@@ -325,6 +337,9 @@ def parse_configs_and_run(configs,
         print("Outputs and logs saved to {0}".format(
             current_run_output_dir))
 
+    config_out = "{0}_lr={1}.yml".format(
+        os.path.basename(config_file)[:-4], lr)
+    copyfile(config_file, os.path.join(current_run_output_dir, config_out))
     if "random_seed" in configs:
         seed = configs["random_seed"]
         torch.manual_seed(seed)

@@ -31,5 +31,4 @@ if __name__ == "__main__":
         version=__version__)
 
     torch.multiprocessing.set_start_method("spawn", force=True)
-    configs = load_path(arguments["<config-yml>"], instantiate=False)
-    parse_configs_and_run(configs, lr=arguments["--lr"])
+    parse_configs_and_run(arguments["<config-yml>"], lr=arguments["--lr"])
