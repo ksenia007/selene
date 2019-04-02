@@ -217,7 +217,7 @@ def compute_score(prediction, target, metric_fn,
     with Parallel(n_jobs=num_workers) as parallel:
         feature_scores = parallel(
             delayed(_compute_score)(prediction[:, i],
-                                    target[:, i].toarray().ravel(),
+                                    target[:, i].ravel(),
                                     metric_fn,
                                     report_gt_feature_n_positives)
             for i in range(prediction.shape[1]))
