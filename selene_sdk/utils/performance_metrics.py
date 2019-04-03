@@ -202,18 +202,17 @@ def compute_score(prediction, target, metric_fn,
     """
 
     def _compute_score(feature_preds, feature_targets,
-                      metric_fn, report_gt_feature_n_positives):
+                       metric_fn, report_gt_feature_n_positives):
         if len(np.unique(feature_targets)) > 0 and \
                np.count_nonzero(feature_targets) > report_gt_feature_n_positives:
             try:
-                auc = metric_fn(
+                score = metric_fn(
                     feature_targets, feature_preds)
-                return auc
+                return score
             except ValueError:  # do I need to make this more generic?
                 return np.nan
         else:
             return np.nan
-
     with Parallel(n_jobs=num_workers) as parallel:
         feature_scores = parallel(
             delayed(_compute_score)(prediction[:, i],
