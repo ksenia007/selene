@@ -41,7 +41,12 @@ class H5Dataset(data.Dataset):
 
 
 class H5DataLoader(DataLoader):
-    def __init__(self, filepath, num_workers=1, use_subset=None, batch_size=1,shuffle=True):
+    def __init__(self,
+                 filepath,
+                 num_workers=1,
+                 use_subset=None,
+                 batch_size=1,
+                 shuffle=True):
          args = {
              "batch_size": batch_size,
              "num_workers": num_workers,
