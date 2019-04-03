@@ -409,12 +409,6 @@ class TrainModel(object):
             self.optimizer.step()
             loss_value = loss.item()
 
-            #del loss
-            #del inputs
-            #del targets
-            #del predictions
-            #torch.cuda.empty_cache()
-
             t_f = time()
             if i % 100 == 0:
                 logger.debug("{0}: {1} s to propagate sample".format(i, t_f - t_i))
