@@ -10,17 +10,17 @@ class SamplerDataset(data.Dataset):
         super(SamplerDataset, self).__init__()
         self.sampler = sampler
         self.size = size
-
+    
     def __getitem__(self, index):
         sequences, targets = self.sampler.sample(batch_size=1 if isinstance(index, int) else len(index))
         if sequences.shape[0]==1:
             sequences = sequences[0,:]
             targets = targets[0,:]
         return torch.from_numpy(sequences.astype(np.float32)), torch.from_numpy(targets.astype(np.float32))
-
+    
     def __len__(self):
         return self.size
-
+    
 
 class SamplerDataLoader(DataLoader):
     def __init__(self,
@@ -34,8 +34,8 @@ class SamplerDataLoader(DataLoader):
              "pin_memory": True,
              }
          super(SamplerDataLoader, self).__init__(SamplerDataset(sampler, size=size),**args)
-
+    
     def get_data_and_targets(self, batch_size, n_samples=None):
-       return self.dataset.get_data_and_targets( batch_size, n_samples=None)
-
-
+       return self.dataset.get_data_and_targets( batch_size, n_samples=n_samples)
+    
+    
