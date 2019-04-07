@@ -264,8 +264,7 @@ class GenomicFeatures(Target):
         """
         Constructs a new `GenomicFeatures` object.
         """
-        self.data = tabix.open(input_path)
-
+        self.input_path = input_path
         self.n_features = len(features)
 
         self.feature_index_dict = dict(
@@ -282,6 +281,16 @@ class GenomicFeatures(Target):
         else:
             self.feature_thresholds, self._feature_thresholds_vec = \
                 _define_feature_thresholds(feature_thresholds, features)
+        self.initialized = False
+
+    def init(func):
+        #delay initlization to allow  multiprocessing
+        def dfunc(self, *args, **kwargs):
+            if not self.initialized:
+                self.data = tabix.open(self.input_path)
+                self.initialized = True
+            return func(self, *args, **kwargs)
+        return dfunc
 
     def _query_tabix(self, chrom, start, end):
         """
@@ -313,6 +322,7 @@ class GenomicFeatures(Target):
         except tabix.TabixError:
             return None
 
+    @init
     def is_positive(self, chrom, start, end):
         """
         Determines whether the query the `chrom` queried contains any
@@ -339,6 +349,7 @@ class GenomicFeatures(Target):
         rows = self._query_tabix(chrom, start, end)
         return _any_positive_rows(rows, start, end, self.feature_thresholds)
 
+    @init
     def get_feature_data(self, chrom, start, end):
         """
         For a sequence of length :math:`L = end - start`, return the
@@ -383,24 +394,25 @@ class GenomicFeatures(Target):
         n_bins = int((end - start - self.bin_size) / self.step_size) + 1
         targets = np.zeros(self.n_features * n_bins, dtype=bool)
 
-        query_times = []
-        iter_times = []
+
+        #query_times = []
+        #iter_times = []
         for i in range(n_bins):
             bstart = start + i * self.step_size
             center = int(bstart + self.bin_size / 2)
 
-            t_i = time()
+            #t_i = time()
             rows = self._query_tabix(chrom, center, center + 1)
             if rows is None:
                 continue
-            query_times.append(time() - t_i)
-
-            t_i = time()
+            #query_times.append(time() - t_i)
+            
+            #t_i = time()
             tgts_start = i * self.n_features
             for r in rows:
                 fidx = self.feature_index_dict[r[3]]
                 targets[tgts_start + fidx] = True
-            iter_times.append(time() - t_i)
-        print(np.average(query_times), "query")
-        print(np.average(iter_times), "iter")
+            #iter_times.append(time() - t_i)
+        #print(np.average(query_times), "query")
+        #print(np.average(iter_times), "iter")
         return targets
