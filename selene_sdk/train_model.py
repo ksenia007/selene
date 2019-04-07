@@ -440,29 +440,29 @@ class TrainModel(object):
                     time_per_step = []
                     self._train_logger.info(loss_value)
                     logger.info("training loss: {0}".format(loss_value))
-        logger.debug("Epoch completed, running validation.")
-        valid_scores = self.validate()
-        validation_loss = valid_scores["loss"]
-        to_log = [str(validation_loss)]
-        for k in sorted(self._validation_metrics.metrics.keys()):
-            if k in valid_scores and valid_scores[k]:
-                to_log.append(str(valid_scores[k]))
-            else:
-                to_log.append("NA")
-        self._validation_logger.info("\t".join(to_log))
-        scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
+                    valid_scores = self.validate()
+                    validation_loss = valid_scores["loss"]
+                    to_log = [str(validation_loss)]
+        
+                    for k in sorted(self._validation_metrics.metrics.keys()):
+                        if k in valid_scores and valid_scores[k]:
+                            to_log.append(str(valid_scores[k]))
+                        else:
+                            to_log.append("NA")
+                    self._validation_logger.info("\t".join(to_log))
+                    scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
 
-        if validation_loss < min_loss:
-            min_loss = validation_loss
-            self._save_checkpoint({
-                "step": i,
-                "arch": self.model.__class__.__name__,
-                "state_dict": self.model.state_dict(),
-                "min_loss": min_loss,
-                "optimizer": self.optimizer.state_dict()}, True)
-            logger.debug("Updating `best_model.pth.tar`")
-        logger.info("validation loss: {0}".format(validation_loss))
-
+                    if validation_loss < min_loss:
+                        min_loss = validation_loss
+                        self._save_checkpoint({
+                          "step": i,
+                          "arch": self.model.__class__.__name__,
+                          "state_dict": self.model.state_dict(),
+                          "min_loss": min_loss,
+                          "optimizer": self.optimizer.state_dict()}, True)
+                        logger.debug("Updating `best_model.pth.tar`")
+                        logger.info("validation loss: {0}".format(validation_loss))
+        
         #self.sampler.save_dataset_to_file("train", close_filehandle=True)
 
     def train(self):
