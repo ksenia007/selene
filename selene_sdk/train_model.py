@@ -205,7 +205,8 @@ class TrainModel(object):
                  logging_verbosity=2,
                  checkpoint_resume=None,
                  metrics=dict(roc_auc=roc_auc_score,
-                              average_precision=average_precision_score)):
+                              average_precision=average_precision_score),
+                 compute_metrics_on=None):
         """
         Constructs a new `TrainModel` object.
         """
@@ -214,7 +215,7 @@ class TrainModel(object):
         self.criterion = loss_criterion
         self.optimizer = optimizer_class(
             self.model.parameters(), **optimizer_kwargs)
-
+        print("optim: {0}".format(optimizer_class))
         self.batch_size = batch_size
         self.max_steps = max_steps
         self.nth_step_report_stats = report_stats_every_n_steps
@@ -256,7 +257,8 @@ class TrainModel(object):
 
         self._train_sampler = self.sampler._samplers["train"]
 
-        self._create_validation_set(n_samples=n_validation_samples)
+        self._create_validation_set(n_samples=n_validation_samples,
+                                    compute_metrics_on=compute_metrics_on)
         self._validation_metrics = PerformanceMetrics(
             self.sampler.get_feature_from_index,
             report_gt_feature_n_positives=report_gt_feature_n_positives,
@@ -311,7 +313,7 @@ class TrainModel(object):
             sorted([x for x in self._validation_metrics.metrics.keys()])))
 
 
-    def _create_validation_set(self, n_samples=None):
+    def _create_validation_set(self, n_samples=None, compute_metrics_on=None):
         """
         Generates the set of validation examples.
 
@@ -327,8 +329,15 @@ class TrainModel(object):
         self._all_validation_seqs, self._all_validation_targets = \
             self.sampler.get_validation_set(
                 self.batch_size, n_samples=n_samples)
+
         n_cols = self._all_validation_targets.shape[1]
-        self._check_cols = list(range(0, n_cols, 5))
+        if compute_metrics_on and isinstance(compute_metrics_on, list):
+            self._check_cols = list(
+                range(compute_metrics_on[0], compute_metrics_on[1]))
+        elif compute_metrics_on and isinstance(compute_metrics_on, int):
+            self._check_cols = list(range(0, n_cols, compute_metrics_on))
+        else:
+            self._check_cols = list(range(n_cols))
         t_f = time()
         logger.info(("{0} s to load {1} validation examples ({2} validation "
                      "batches) to evaluate after each training step.").format(
@@ -443,7 +452,7 @@ class TrainModel(object):
                     valid_scores = self.validate()
                     validation_loss = valid_scores["loss"]
                     to_log = [str(validation_loss)]
-        
+
                     for k in sorted(self._validation_metrics.metrics.keys()):
                         if k in valid_scores and valid_scores[k]:
                             to_log.append(str(valid_scores[k]))
@@ -462,7 +471,7 @@ class TrainModel(object):
                           "optimizer": self.optimizer.state_dict()}, True)
                         logger.debug("Updating `best_model.pth.tar`")
                         logger.info("validation loss: {0}".format(validation_loss))
-        
+
         #self.sampler.save_dataset_to_file("train", close_filehandle=True)
 
     def train(self):
@@ -539,7 +548,6 @@ class TrainModel(object):
             with torch.no_grad():
                 inputs = Variable(inputs)
                 targets = Variable(targets)
-
                 predictions = self.model(
                     inputs.transpose(1, 2))
                 loss = self.criterion(predictions, targets)
