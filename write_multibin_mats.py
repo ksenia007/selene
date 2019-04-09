@@ -62,7 +62,7 @@ if __name__ == "__main__":
                 fh.create_dataset("sequences_length",data=sequences_length)
                 seqs = fh.create_dataset(
                     "sequences",
-                    (configs["batch_size"] * configs["n_steps"], sb.shape[1], 4),
+                    (configs["batch_size"] * n_steps, sb.shape[1], 4),
                     dtype='uint8')
             if tgts is None:
                 # deepsea2 n_features: 2002 * 495
@@ -71,7 +71,7 @@ if __name__ == "__main__":
                 fh.create_dataset("targets_length",data=targets_length)
                 tgts = fh.create_dataset(
                     "targets",
-                    (configs["batch_size"] * configs["n_steps"], tb.shape[1]),
+                    (configs["batch_size"] * n_steps, tb.shape[1]),
                     dtype='uint8')
             seqs[i*configs["batch_size"]:(i+1)*configs["batch_size"]] = sb
             tgts[i*configs["batch_size"]:(i+1)*configs["batch_size"],:] = tb
