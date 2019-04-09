@@ -8,12 +8,12 @@ def bs(x, df=None, knots=None, degree=3, intercept=False):
         The number of degrees of freedom to use for this spline. The
         return value will have this many columns. You must specify at least
         one of `df` and `knots`.
-    knots : list(int?)
-        The interior knots to use for the spline. If unspecified, then equally
+    knots : list(float)
+        The interior knots of the spline. If unspecified, then equally
         spaced quantiles of the input data are used. You must specify at least
         one of `df` and `knots`.
     degree : int
-        The degree of the spline to use.
+        The degree of the piecewise polynomial. Default is 3 for cubic splines.
     intercept : bool
         If `True`, the resulting spline basis will span the intercept term
         (i.e. the constant function). If `False` (the default) then this
