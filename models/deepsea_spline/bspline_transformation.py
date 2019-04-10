@@ -9,7 +9,7 @@ def spline_factory(n, df, log=False):
     if log:
         dist = np.array(np.arange(n) - n/2.0)
         dist = np.log(np.abs(dist) + 1) * ( 2*(dist>0)-1)
-        n_knots = self._df - 4
+        n_knots = df - 4
         knots = np.linspace(np.min(dist),np.max(dist),n_knots+2)[1:-1]
         return torch.from_numpy(bs(
             dist, knots=knots, intercept=True)).float()
@@ -53,10 +53,10 @@ class BSplineConv1D(nn.Module):
 
         self.spline = nn.Conv1d(1, degrees_of_freedom, kernel_size, stride, padding, dilation,
             bias=False)
-        self.spline.weight = spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size)
+        weight = spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size)
         if scaled:
-            self.spline.weight = self.spline.weight / kernel_size            
-        self.spline.weight = nn.Parameter(self.spline.weight)
+            weight = self.spline.weight / kernel_size            
+        self.spline.weight = nn.Parameter(weight)
         self.spline.weight.requires_grad = False
         self.conv1d = nn.Conv1d(in_channels * degrees_of_freedom, out_channels, 1, 
             groups = groups, bias=bias)
