@@ -201,7 +201,7 @@ class Genome(Sequence):
                             "sequences/data/hg38.blacklist.bed.gz"))
                 elif self.blacklist_regions is not None:  # user-specified file
                     self._blacklist_tabix = tabix.open(
-                        blacklist_regions)
+                        self.blacklist_regions)
 
                 self.initialized = True
             return func(self, *args, **kwargs)
@@ -315,6 +315,9 @@ class Genome(Sequence):
             choices.
 
         """
+        if start >= end:
+            print("ERR", chrom, start, end, flush=True)
+            return ""
         return _get_sequence_from_coords(self.len_chrs,
                                          self._genome_sequence,
                                          chrom,
