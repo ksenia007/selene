@@ -54,9 +54,8 @@ if __name__ == "__main__":
             if i % 50 == 0:
                 print("processing step {0} for {1} records".format(i, arguments["<mode>"]))
             sequences, targets = data_sampler.sample(batch_size=configs["batch_size"])
-            sb = np.packbits(sequences, axis=1)
-            tb = np.packbits(targets, axis=1)
-            print(sb.shape, tb.shape)
+            sb = np.packbits(sequences>0, axis=1)
+            tb = np.packbits(targets>0, axis=1)
             if seqs is None:
                 sequences_length =  sequences.shape[1]
                 fh.create_dataset("sequences_length",data=sequences_length)
