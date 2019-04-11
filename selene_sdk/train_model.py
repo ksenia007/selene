@@ -330,6 +330,7 @@ class TrainModel(object):
             self.sampler.get_validation_set(
                 self.batch_size, n_samples=n_samples)
 
+
         n_cols = self._all_validation_targets.shape[1]
         if compute_metrics_on and isinstance(compute_metrics_on, list):
             self._check_cols = list(
@@ -536,7 +537,7 @@ class TrainModel(object):
         count = 0
         while count < data_targets.shape[0]:
             remainder = min(data_targets.shape[0] - count, self.batch_size)
-            inputs = data_seqs[count:count + remainder, :, :]
+            inputs = data_seqs[count:count + remainder, :, :].astype(float)
             targets = data_targets[count:count + remainder, :].astype(float)
             inputs = torch.Tensor(inputs)
             targets = torch.Tensor(targets)
