@@ -22,16 +22,19 @@ def spline_factory(n, df, log=False):
 
 class BSplineTransformation(nn.Module):
 
-    def __init__(self, degrees_of_freedom, log=False):
+    def __init__(self, degrees_of_freedom, log=False, scaled=False):
         super(BSplineTransformation, self).__init__()
         self._spline_tr = None
         self._log = log
+        self._scaled = scaled
         self._df = degrees_of_freedom
 
     def forward(self, input):
         if self._spline_tr is None:
             spatial_dim = input.size()[-1]
             self._spline_tr = spline_factory(spatial_dim, self._df, log=self._log)
+            if self._scaled:
+                self._spline_tr = self._spline_tr / spatial_dim
             if input.is_cuda:
                 self._spline_tr = self._spline_tr.cuda()
 
@@ -41,18 +44,19 @@ class BSplineTransformation(nn.Module):
 
 class BSplineConv1D(nn.Module):
 
-    def __init__(self,
-                 in_channels, out_channels,
-                 kernel_size, degrees_of_freedom,
-                 stride=1, padding=0, dilation=1, groups=1,
-                 bias=True, log=False):
+    def __init__(self, in_channels, out_channels, kernel_size, degrees_of_freedom, stride=1,
+                 padding=0, dilation=1, groups=1, bias=True, log=False, scaled = True):
         super(BSplineConv1D, self).__init__()
         self._df = degrees_of_freedom
         self._log = log
-
+        self._scaled = scaled
+        self._stride = stride
         self.spline = nn.Conv1d(1, degrees_of_freedom, kernel_size, stride, padding, dilation,
             bias=False)
-        self.spline.weight = nn.Parameter(spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size))
+        spline_weight = spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size)
+        if scaled:
+            spline_weight = self.spline.weight / kernel_size
+        self.spline.weight = nn.Parameter(spline_weight)
         self.spline.weight.requires_grad = False
         self.conv1d = nn.Conv1d(in_channels * degrees_of_freedom, out_channels, 1,
             groups = groups, bias=bias)
@@ -60,5 +64,6 @@ class BSplineConv1D(nn.Module):
     def forward(self, input):
         batch_size, n_channels, length = input.size()
         spline_out = self.spline(input.view(batch_size * n_channels,1,length))
-        conv1d_out = self.conv1d(spline_out.view(batch_size, n_channels * self._df,  length))
+        _, _, updated_l = spline_out.size()
+        conv1d_out = self.conv1d(spline_out.view(batch_size, n_channels * self._df,  updated_l))
         return conv1d_out
