@@ -53,10 +53,10 @@ class BSplineConv1D(nn.Module):
         self._stride = stride
         self.spline = nn.Conv1d(1, degrees_of_freedom, kernel_size, stride, padding, dilation,
             bias=False)
-        spline_weight = spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size)
+        weight = spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size)
         if scaled:
-            spline_weight = self.spline.weight / kernel_size
-        self.spline.weight = nn.Parameter(spline_weight)
+            weight = self.spline.weight / kernel_size
+        self.spline.weight = nn.Parameter(weight)
         self.spline.weight.requires_grad = False
         self.conv1d = nn.Conv1d(in_channels * degrees_of_freedom, out_channels, 1,
             groups = groups, bias=bias)
