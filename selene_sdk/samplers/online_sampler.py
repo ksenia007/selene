@@ -338,20 +338,23 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
             self.set_mode(mode)
         else:
             mode = self.mode
-        sequences_and_targets = []
         if n_samples is None and mode == "validate":
             n_samples = 32000
         elif n_samples is None and mode == "test":
             n_samples = 640000
 
+        sequences_mat = []
+        targets_mat = []
         n_batches = int(n_samples / batch_size)
         for _ in range(n_batches):
             inputs, targets = self.sample(batch_size)
-            sequences_and_targets.append((inputs, targets))
-        targets_mat = np.vstack([t for (s, t) in sequences_and_targets])
+            sequences_mat.append(inputs)
+            targets_mat.append(targets)
+        sequences_mat = np.vstack(sequences_mat)
+        targets_mat = np.vstack(targets_mat)
         if mode in self._save_datasets:
             self.save_dataset_to_file(mode, close_filehandle=True)
-        return sequences_and_targets, targets_mat
+        return sequences_mat, targets_mat
 
     def get_dataset_in_batches(self, mode, batch_size, n_samples=None):
         """

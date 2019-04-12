@@ -37,7 +37,7 @@ class BSplineTransformation(nn.Module):
                 self._spline_tr = self._spline_tr / spatial_dim
             if input.is_cuda:
                 self._spline_tr = self._spline_tr.cuda()
-        
+
         return  torch.matmul(input, self._spline_tr)
 
 
@@ -50,19 +50,20 @@ class BSplineConv1D(nn.Module):
         self._df = degrees_of_freedom
         self._log = log
         self._scaled = scaled
-
+        self._stride = stride
         self.spline = nn.Conv1d(1, degrees_of_freedom, kernel_size, stride, padding, dilation,
             bias=False)
         weight = spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size)
         if scaled:
-            weight = self.spline.weight / kernel_size            
+            weight = self.spline.weight / kernel_size
         self.spline.weight = nn.Parameter(weight)
         self.spline.weight.requires_grad = False
-        self.conv1d = nn.Conv1d(in_channels * degrees_of_freedom, out_channels, 1, 
+        self.conv1d = nn.Conv1d(in_channels * degrees_of_freedom, out_channels, 1,
             groups = groups, bias=bias)
 
     def forward(self, input):
         batch_size, n_channels, length = input.size()
         spline_out = self.spline(input.view(batch_size * n_channels,1,length))
-        conv1d_out = self.conv1d(spline_out.view(batch_size, n_channels * self._df,  length))
+        _, _, updated_l = spline_out.size()
+        conv1d_out = self.conv1d(spline_out.view(batch_size, n_channels * self._df,  updated_l))
         return conv1d_out

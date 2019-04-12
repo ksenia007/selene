@@ -7,6 +7,7 @@ We would like to generalize this to `selene_sdk.sequences.Sequence` if possible.
 from collections import namedtuple
 import logging
 import random
+from time import time
 
 import numpy as np
 
