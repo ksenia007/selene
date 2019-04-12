@@ -353,6 +353,8 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
         sequences_mat = np.vstack(sequences_mat)
         targets_mat = np.vstack(targets_mat)
         if mode in self._save_datasets:
+            print("saving dataset for mode {0} to file".format(mode),
+                  flush=True)
             self.save_dataset_to_file(mode, close_filehandle=True)
         return sequences_mat, targets_mat
 

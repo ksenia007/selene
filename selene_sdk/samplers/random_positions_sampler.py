@@ -169,7 +169,7 @@ class RandomPositionsSampler(OnlineSampler):
         self.initialized = False
 
     def init(func):
-        #delay initlization to allow  multiprocessing
+        # delay initialization to allow multiprocessing
         def dfunc(self, *args, **kwargs):
             if not self.initialized:
                 if self._holdout_type == "chromosome":
@@ -254,7 +254,7 @@ class RandomPositionsSampler(OnlineSampler):
         bin_end = position + self._end_radius
         window_start = bin_start - self.surrounding_sequence_radius
         window_end = bin_end + self.surrounding_sequence_radius
-        if window_end - window_start < self.sequence_length:
+        if window_end - window_start != self.sequence_length:
             print(bin_start, bin_end,
                   self._start_radius, self._end_radius,
                   self.surrounding_sequence_radius)

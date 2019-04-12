@@ -228,4 +228,9 @@ class MultiFileSampler(Sampler):
             file and `save_dataset_to_file` will not be called with
             `mode` again.
         """
-        return None
+        try:
+            self._samplers[mode].save_dataset_to_file(
+                close_filehandle=close_filehandle)
+        except AttributeError:
+            print("Sampler for mode {0} does not have a method for "
+                  "saving the sampled data.".format(mode), flush=True)
