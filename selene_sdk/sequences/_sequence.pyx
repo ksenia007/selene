@@ -19,5 +19,5 @@ def _fast_sequence_to_encoding(str sequence, dict base_to_index, int bases_size)
         if base in base_to_index:
             encoding[index, base_to_index[base]] = 1
         else:
-            encoding[index, :] = 1
+            encoding[index, :] = 0.25
     return encoding
