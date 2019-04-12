@@ -328,7 +328,6 @@ class RandomPositionsSampler(OnlineSampler):
             where :math:`F` is the number of features.
 
         """
-        t_i = time()
         sequences = np.zeros((batch_size, self.sequence_length, 4), dtype=float)
         targets = np.zeros((batch_size, self.n_features * self.n_bins), dtype=float)
         n_samples_drawn = 0
