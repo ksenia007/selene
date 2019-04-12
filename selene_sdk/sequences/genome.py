@@ -69,6 +69,9 @@ def _get_sequence_from_coords(len_chrs,
     if not pad and (end > len_chrs[chrom] or start < 0):
         return ""
 
+    if start >= end:
+        return ""
+
     if blacklist_tabix is not None:
         try:
             rows = blacklist_tabix.query(chrom, start, end)
@@ -85,11 +88,15 @@ def _get_sequence_from_coords(len_chrs,
     end_pad = 0
     start_pad = 0
     if end > len_chrs[chrom]:
+        print("needs end padding: {0}, {1}, {2}".format(chrom, start, end), flush=True)
         end_pad = len_chrs[chrom] - end
         end = len_chrs[chrom]
     if start < 0:
+        print("needs start padding: {0}, {1}, {2}".format(chrom, start, end), flush=True)
         start_pad = -1 * start
         start = 0
+    if start >= end:
+        return ""
     return (Genome.UNK_BASE * start_pad +
             genome_sequence(chrom, start, end, strand) +
             Genome.UNK_BASE * end_pad)
@@ -362,10 +369,15 @@ class Genome(Sequence):
             (Raised in the call to `self.get_sequence_from_coords`)
 
         """
-        sequence = self.get_sequence_from_coords(
-            chrom, start, end, strand=strand)
-        encoding = self.sequence_to_encoding(sequence)
-        return encoding
+        try:
+            sequence = self.get_sequence_from_coords(
+                chrom, start, end, strand=strand)
+            encoding = self.sequence_to_encoding(sequence)
+            return encoding
+        except ValueError:
+            print("Caught ValueError for {0}, {1}, {2}".format(
+                chrom, start, end), flush=True)
+            return self.sequence_to_encoding("")
 
     @classmethod
     def sequence_to_encoding(cls, sequence):
