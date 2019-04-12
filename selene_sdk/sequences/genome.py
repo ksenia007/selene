@@ -63,7 +63,7 @@ def _get_sequence_from_coords(len_chrs,
     if chrom not in len_chrs:
         return ""
 
-    if start > len_chrs[chrom]:
+    if start >= len_chrs[chrom]:
         return ""
 
     if not pad and (end > len_chrs[chrom] or start < 0):
@@ -88,14 +88,14 @@ def _get_sequence_from_coords(len_chrs,
     end_pad = 0
     start_pad = 0
     if end > len_chrs[chrom]:
-        print("needs end padding: {0}, {1}, {2}".format(chrom, start, end), flush=True)
-        end_pad = len_chrs[chrom] - end
+        end_pad = end - len_chrs[chrom]
         end = len_chrs[chrom]
     if start < 0:
-        print("needs start padding: {0}, {1}, {2}".format(chrom, start, end), flush=True)
         start_pad = -1 * start
         start = 0
     if start >= end:
+        print("chromosome: {0}, length = {1}".format(
+            chrom, len_chrs[chrom]), flush=True)
         return ""
     return (Genome.UNK_BASE * start_pad +
             genome_sequence(chrom, start, end, strand) +
@@ -185,10 +185,10 @@ class Genome(Sequence):
         """
         self.input_path = input_path
         self.blacklist_regions = blacklist_regions
-        self.initialized =False
+        self.initialized = False
 
     def init(func):
-        #delay initlization to allow  multiprocessing
+        # delay initlization to allow multiprocessing
         def dfunc(self, *args, **kwargs):
             if not self.initialized:
                 self.genome = pyfaidx.Fasta(self.input_path)
@@ -274,7 +274,7 @@ class Genome(Sequence):
         """
         if chrom not in self.len_chrs:
             return False
-        if (start > self.len_chrs[chrom] or end > (self.len_chrs[chrom] + 1)
+        if (start >= self.len_chrs[chrom] or end > (self.len_chrs[chrom] + 1)
                 or start < 0):
             return False
         return True
@@ -322,9 +322,6 @@ class Genome(Sequence):
             choices.
 
         """
-        if start >= end:
-            print("ERR", chrom, start, end, flush=True)
-            return ""
         return _get_sequence_from_coords(self.len_chrs,
                                          self._genome_sequence,
                                          chrom,
