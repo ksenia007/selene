@@ -10,6 +10,8 @@ from shutil import copytree
 import sys
 from time import strftime
 import types
+import random
+import string
 
 import torch
 
@@ -332,8 +334,10 @@ def parse_configs_and_run(configs_file,
         if "create_subdirectory" in configs:
             create_subdirectory = configs["create_subdirectory"]
         if create_subdirectory:
+            randstr = ''.join(random.SystemRandom().choice( \
+                string.ascii_uppercase + string.digits) for _ in range(8))
             current_run_output_dir = os.path.join(
-                current_run_output_dir, strftime("%Y-%m-%d-%H-%M-%S"))
+                current_run_output_dir, strftime("%Y-%m-%d-%H-%M-%S")+'-'+randstr)
             os.makedirs(current_run_output_dir)
         print("Outputs and logs saved to {0}".format(
             current_run_output_dir))
