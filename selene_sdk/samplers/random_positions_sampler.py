@@ -232,7 +232,7 @@ class RandomPositionsSampler(OnlineSampler):
             elif self.test_holdout and chrom in self.test_holdout:
                 self._sample_from_mode["test"].indices.append(
                     index)
-            elif '_' not in chrom:
+            else:
                 self._sample_from_mode["train"].indices.append(
                     index)
             self.sample_from_intervals.append(
@@ -328,8 +328,8 @@ class RandomPositionsSampler(OnlineSampler):
             where :math:`F` is the number of features.
 
         """
-        sequences = np.zeros((batch_size, self.sequence_length, 4), dtype=float)
-        targets = np.zeros((batch_size, self.n_features * self.n_bins), dtype=float)
+        sequences = None
+        targets = None
         n_samples_drawn = 0
         while n_samples_drawn < batch_size:
             sample_index = self._randcache[self.mode]["sample_next"]
@@ -352,6 +352,9 @@ class RandomPositionsSampler(OnlineSampler):
             if not retrieve_output:
                 continue
             seq, seq_targets = retrieve_output
+            if sequences is None and targets is None:
+                sequences = np.zeros((batch_size, seq.shape[0], seq.shape[1]), dtype=float)
+                targets = np.zeros((batch_size, self.n_features * self.n_bins), dtype=float)
             sequences[n_samples_drawn, :, :] = seq
             targets[n_samples_drawn, :] = seq_targets
             n_samples_drawn += 1
