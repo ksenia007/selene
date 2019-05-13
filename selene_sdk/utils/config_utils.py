@@ -102,12 +102,14 @@ def initialize_model(model_configs, output_dir, train=True, lr=None):
     if os.path.isdir(import_model_from):
         import_model_from = import_model_from.rstrip(os.sep)
         module = module_from_dir(import_model_from)
-        copytree(import_model_from,
-                 os.path.join(output_dir, os.path.basename(import_model_from)))
+        if output_dir:
+            copytree(import_model_from,
+                     os.path.join(output_dir, os.path.basename(import_model_from)))
     else:
         module = module_from_file(import_model_from)
-        copyfile(import_model_from,
-                 os.path.join(output_dir, os.path.basename(import_model_from)))
+        if output_dir:
+            copyfile(import_model_from,
+                     os.path.join(output_dir, os.path.basename(import_model_from)))
 
     model_class = getattr(module, model_class_name)
 
@@ -338,9 +340,9 @@ def parse_configs_and_run(configs_file,
         print("Outputs and logs saved to {0}".format(
             current_run_output_dir))
 
-    config_out = "{0}_lr={1}.yml".format(
-        os.path.basename(configs_file)[:-4], lr)
-    copyfile(configs_file, os.path.join(current_run_output_dir, config_out))
+        config_out = "{0}_lr={1}.yml".format(
+            os.path.basename(configs_file)[:-4], lr)
+        copyfile(configs_file, os.path.join(current_run_output_dir, config_out))
     if "random_seed" in configs:
         seed = configs["random_seed"]
         torch.manual_seed(seed)
