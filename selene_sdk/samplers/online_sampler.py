@@ -203,6 +203,9 @@ class OnlineSampler(Sampler, metaclass=ABCMeta):
 
         self.surrounding_sequence_radius = int(
             surrounding_sequence_length / 2)
+        self._start_surrounding_sequence_radius = bins_start
+        self._end_surrounding_sequence_radius = sequence_length - bins_end
+        
         self.sequence_length = sequence_length
 
         self.bins_start = bins_start
