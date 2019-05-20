@@ -4,7 +4,7 @@ Description:
     dataset from a tabix-indexed BED file of peaks and a genome.
 
 Usage:
-    write_multibin_mats.py <config-yml> <mode> <n-steps> <rseed>
+    write_multibin_mats.py <config-yml> <mode> <n-steps> <rseed> <packbits>
     write_multibin_mats.py -h | --help
 
 Options:
@@ -16,6 +16,7 @@ Options:
     <n-steps>               Number of steps to take (total number of data
                             samples generated will be batch_size * n_steps
     <rseed>                 The random seed to use during sampling.
+    <packbits>              Whether to pack bits or not.
 """
 from docopt import docopt
 import os
@@ -42,6 +43,7 @@ if __name__ == "__main__":
     seq_len = configs["sampler"].keywords["sequence_length"]
     batch_size = configs["batch_size"]
     n_steps = int(arguments["<n-steps>"])
+    packbits = arguments["<packbits>"] == 'True'
 
     with h5py.File(os.path.join(output_dir,
                                 "{0}_seed={1}_N={2}.h5".format(
@@ -54,23 +56,34 @@ if __name__ == "__main__":
             if i % 50 == 0:
                 print("processing step {0} for {1} records".format(i, arguments["<mode>"]))
             sequences, targets = data_sampler.sample(batch_size=configs["batch_size"])
-            sb = np.packbits(sequences>0, axis=1)
-            tb = np.packbits(targets>0, axis=1)
+            sequences_length = sequences.shape[1]
+            targets_length = targets.shape[1]
+            if packbits:
+                sequences = np.packbits(sequences > 0, axis=1)
+                targets = np.packbits(targets > 0, axis=1)
             if seqs is None:
-                sequences_length =  sequences.shape[1]
-                fh.create_dataset("sequences_length",data=sequences_length)
-                seqs = fh.create_dataset(
-                    "sequences",
-                    (configs["batch_size"] * n_steps, sb.shape[1], 4),
-                    dtype='uint8')
+                fh.create_dataset("sequences_length", data=sequences_length)
+                if packbits:
+                    seqs = fh.create_dataset(
+                        "sequences",
+                        (configs["batch_size"] * n_steps,
+                         sequences.shape[1],
+                         sequences.shape[2]),
+                        dtype='uint8')
+                else:
+                    seqs = fh.create_dataset(
+                        "sequences",
+                        (configs["batch_size"] * n_steps,
+                         sequences.shape[1],
+                         sequences.shape[2]),
+                        dtype='float')
             if tgts is None:
                 # deepsea2 n_features: 2002 * 495
                 # cistrome mouse n_features: 16441 * 248
-                targets_length = targets.shape[1]
-                fh.create_dataset("targets_length",data=targets_length)
+                fh.create_dataset("targets_length", data=targets_length)
                 tgts = fh.create_dataset(
                     "targets",
-                    (configs["batch_size"] * n_steps, tb.shape[1]),
+                    (configs["batch_size"] * n_steps, targets.shape[1]),
                     dtype='uint8')
-            seqs[i*configs["batch_size"]:(i+1)*configs["batch_size"]] = sb
-            tgts[i*configs["batch_size"]:(i+1)*configs["batch_size"],:] = tb
+            seqs[i*configs["batch_size"]:(i+1)*configs["batch_size"]] = sequences
+            tgts[i*configs["batch_size"]:(i+1)*configs["batch_size"],:] = targets

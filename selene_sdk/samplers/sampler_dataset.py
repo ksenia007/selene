@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.utils.data as data
 from torch.utils.data import DataLoader
-import  sys
+import sys
 
 class SamplerDataset(data.Dataset):
     def __init__(self, sampler, size=sys.maxsize):
@@ -11,11 +11,13 @@ class SamplerDataset(data.Dataset):
         self.size = size
 
     def __getitem__(self, index):
-        sequences, targets = self.sampler.sample(batch_size=1 if isinstance(index, int) else len(index))
-        if sequences.shape[0]==1:
-            sequences = sequences[0,:]
-            targets = targets[0,:]
-        return torch.from_numpy(sequences.astype(np.float32)), torch.from_numpy(targets.astype(np.float32))
+        sequences, targets = self.sampler.sample(
+            batch_size=1 if isinstance(index, int) else len(index))
+        if sequences.shape[0] == 1:
+            sequences = sequences[0, :]
+            targets = targets[0, :]
+        return (torch.from_numpy(sequences.astype(np.float32)),
+                torch.from_numpy(targets.astype(np.float32)))
 
     def __len__(self):
         return self.size
