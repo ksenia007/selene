@@ -86,7 +86,8 @@ class EvaluateModel(object):
                  n_test_samples=None,
                  report_gt_feature_n_positives=10,
                  use_cuda=False,
-                 data_parallel=False):
+                 data_parallel=False,
+                 use_features=None):
         self.criterion = criterion
 
         trained_model = torch.load(
@@ -98,6 +99,15 @@ class EvaluateModel(object):
         self.sampler = data_sampler
 
         self.features = features
+        self._use_ixs = list(range(len(features)))
+        self._use_features = features
+        if use_features:
+            feature_ixs = {f: ix for (ix, f) in enumerate(features)}
+            self._use_ixs = []
+            self._use_features = use_features
+            for f in use_features:
+                self._use_ixs.append(feature_ixs[f])
+            assert len(self._use_ixs) > 0
 
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
@@ -122,7 +132,7 @@ class EvaluateModel(object):
             self._get_feature_from_index,
             report_gt_feature_n_positives=report_gt_feature_n_positives)
 
-        self._test_data, self._all_test_targets = \
+        self._test_data, self._test_targets = \
             self.sampler.get_data_and_targets(self.batch_size, n_test_samples)
 
     def _get_feature_from_index(self, index):
@@ -139,7 +149,7 @@ class EvaluateModel(object):
             The name of the feature/target at the specified index.
 
         """
-        return self.features[index]
+        return self._use_features[index]
 
     def evaluate(self):
         """
@@ -156,38 +166,49 @@ class EvaluateModel(object):
 
         """
         batch_losses = []
-        all_predictions = []
-        for (inputs, targets) in self._test_data:
+
+        if self._test_targets.shape[1] > len(self._use_ixs):
+            self._test_targets = self._test_targets[:, self._use_ixs]
+        all_predictions = np.zeros((self._test_targets.shape[0], self._test_targets.shape[1]))
+
+        count = 0
+        while count < self._test_targets.shape[0]:
+            remainder = min(self._test_targets.shape[0] - count, self.batch_size)
+            inputs = self._test_data[count:count + remainder, :, :].astype(float)
+            targets = self._test_targets[count:count + remainder, :].astype(float)
             inputs = torch.Tensor(inputs)
             targets = torch.Tensor(targets)
 
             if self.use_cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
+
             with torch.no_grad():
                 inputs = Variable(inputs)
                 targets = Variable(targets)
+                predictions = self.model(
+                    inputs.transpose(1, 2))
+                loss = self.criterion(predictions[:, self._use_ixs], targets)
 
-                predictions = self.model(inputs.transpose(1, 2))
-                loss = self.criterion(predictions, targets)
+                all_predictions[count:count + remainder, :] = \
+                    predictions.data.cpu().numpy()[:, self._use_ixs]
 
-                all_predictions.append(predictions.data.cpu().numpy())
                 batch_losses.append(loss.item())
-        all_predictions = np.vstack(all_predictions)
+            count += remainder
+
+            del inputs
+            del targets
+            del predictions
+            del loss
+            torch.cuda.empty_cache()
 
         average_scores = self._metrics.update(
-            all_predictions, self._all_test_targets)
+            all_predictions, self._test_targets)
 
         self._metrics.visualize(
-            all_predictions, self._all_test_targets, self.output_dir)
+            all_predictions, self._test_targets, self.output_dir)
 
-        np.savez_compressed(
-            os.path.join(self.output_dir, "test_predictions.npz"),
-            data=all_predictions)
-
-        np.savez_compressed(
-            os.path.join(self.output_dir, "test_targets.npz"),
-            data=self._all_test_targets)
+        del self._test_targets
 
         loss = np.average(batch_losses)
         logger.info("test loss: {0}".format(loss))
@@ -198,5 +219,14 @@ class EvaluateModel(object):
             self.output_dir, "test_performance.txt")
         feature_scores_dict = self._metrics.write_feature_scores_to_file(
             test_performance)
+
+        np.savez_compressed(
+            os.path.join(self.output_dir, "test_predictions.npz"),
+            data=all_predictions)
+
+        np.savez_compressed(
+            os.path.join(self.output_dir, "test_targets.npz"),
+            data=self._test_targets)
+
 
         return feature_scores_dict
