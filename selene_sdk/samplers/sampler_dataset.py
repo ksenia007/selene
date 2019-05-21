@@ -23,6 +23,27 @@ class SamplerDataset(data.Dataset):
         return self.size
 
 
+class SamplerMultiDataset(data.Dataset):
+    def __init__(self, samplers, size=sys.maxsize, batch_size=1):
+        super(SamplerMultiDataset, self).__init__()
+        self.samplers = samplers
+        self.size = size
+        self.current_dataset = 0
+        self.batch_size =  batch_size
+
+    def __getitem__(self, index):
+        sequences, targets = self.samplers[self.current_dataset].sample(batch_size=self.batch_size if isinstance(index, int) else len(index)*self.batch_size)
+        if sequences.shape[0]==1:
+            sequences = sequences[0,:]
+            targets = targets[0,:]
+        return torch.from_numpy(sequences.astype(np.float32)), torch.from_numpy(targets.astype(np.float32))
+
+    def __len__(self):
+        return self.size
+
+
+
+
 class SamplerDataLoader(DataLoader):
     def __init__(self,
                  sampler,

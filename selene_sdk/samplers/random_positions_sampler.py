@@ -252,8 +252,8 @@ class RandomPositionsSampler(OnlineSampler):
     def _retrieve(self, chrom, position):
         bin_start = position - self._start_radius
         bin_end = position + self._end_radius
-        window_start = bin_start - self.surrounding_sequence_radius
-        window_end = bin_end + self.surrounding_sequence_radius
+        window_start = bin_start - self._start_surrounding_sequence_radius
+        window_end = bin_end + self._end_surrounding_sequence_radius
         if window_end - window_start != self.sequence_length:
             print(bin_start, bin_end,
                   self._start_radius, self._end_radius,

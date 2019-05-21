@@ -177,7 +177,8 @@ class TrainModel(object):
         By default, this contains `"roc_auc"`, which maps to
         `sklearn.metrics.roc_auc_score`, and `"average_precision"`,
         which maps to `sklearn.metrics.average_precision_score`.
-
+    multidatasets : bool
+        If `True`, use multiple datasets and multihead model
     """
 
     def __init__(self,
@@ -201,7 +202,9 @@ class TrainModel(object):
                  checkpoint_resume=None,
                  metrics=dict(roc_auc=roc_auc_score,
                               average_precision=average_precision_score),
-                 compute_metrics_on=None):
+                 compute_metrics_on=None,
+                 multidatasets=False,
+                 disable_scheduler=False):
         """
         Constructs a new `TrainModel` object.
         """
@@ -291,6 +294,9 @@ class TrainModel(object):
         self._validation_logger.info("\t".join(["loss"] +
             sorted([x for x in self._validation_metrics.metrics.keys()])))
 
+        self.multidatasets  = multidatasets
+        self.disable_scheduler = disable_scheduler
+
     def _create_validation_set(self, n_samples=None, compute_metrics_on=None):
         """
         Generates the set of validation examples.
@@ -375,31 +381,44 @@ class TrainModel(object):
 
         """
         min_loss = self._min_loss
-        scheduler = ReduceLROnPlateau(
-            self.optimizer, 'max', patience=32, verbose=True,
-            factor=0.8)
+        if not self.disable_scheduler:
+            scheduler = ReduceLROnPlateau(
+                self.optimizer, 'max', patience=24, verbose=True,
+                factor=0.8)
 
         self.model.train()
         time_per_step = []
         for i, batch in enumerate(self._train_sampler):
             t_i = time()
             inputs, targets = Variable(batch[0]), Variable(batch[1])
-
             if self.use_cuda:
                 inputs, targets = inputs.cuda(), targets.cuda()
+            if self.multidatasets:
+                #TODO: deal with this better
+                try:
+                    self.model.module.model.current_classifier = self._train_sampler.current_dataset
+                except:
+                    try:
+                        self.model.model.current_classifier = self._train_sampler.current_dataset
+                    except:
+                        self.model.current_classifier = self._train_sampler.current_dataset
 
-            predictions = self.model(inputs.transpose(1, 2))
+            predictions = self.model.forward(inputs.transpose(1, 2))
             assert (predictions.data.cpu().numpy().all() >= 0. and
                     predictions.data.cpu().numpy().all() <= 1.)
             assert (targets.data.cpu().numpy().all() >= 0. and
                     targets.data.cpu().numpy().all() <= 1.)
             loss = self.criterion(predictions, targets)
             self.optimizer.zero_grad()
-
             loss.backward()
             self.optimizer.step()
             loss_value = loss.item()
             t_f = time()
+
+            if self.multidatasets:
+                self._train_sampler.current_dataset  += 1
+                self._train_sampler.current_dataset = self._train_sampler.current_dataset % len(self._train_sampler.samplers)
+
             if i % 100 == 0:
                 logger.debug("{0}: {1} s to propagate sample".format(i, t_f - t_i))
             time_per_step.append(t_f - t_i)
@@ -431,6 +450,16 @@ class TrainModel(object):
                     self._train_logger.info(loss_value)
                     logger.info("training loss: {0}".format(loss_value))
                     valid_scores = self.validate()
+                    if self.multidatasets:
+                        #TODO: deal with this better
+                        try:
+                            self.model.module.model.current_classifier = 0
+                        except:
+                            try:
+                                self.model.model.current_classifier = 0
+                            except:
+                                self.model.current_classifier = 0
+
                     validation_loss = valid_scores["loss"]
                     to_log = [str(validation_loss)]
 
@@ -440,7 +469,8 @@ class TrainModel(object):
                         else:
                             to_log.append("NA")
                     self._validation_logger.info("\t".join(to_log))
-                    scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
+                    if not self.disable_scheduler:
+                        scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
 
                     if validation_loss < min_loss:
                         min_loss = validation_loss
