@@ -19,6 +19,14 @@ from . import instantiate
 from . import load_path
 
 
+def class_instantiate(classobj):
+    for attr, obj in classobj.__dict__.items():
+        is_module = getattr(obj, '__module__', None)
+        if is_module and "selene_sdk" in is_module and attr is not "model":
+            class_instantiate(obj)
+    classobj.__init__(**classobj.__dict__)
+
+
 def module_from_file(path):
     """
     Load a module created based on a Python file path.
@@ -173,25 +181,21 @@ def execute(operations, configs, output_dir):
             sampler_info = configs["sampler"]
             if output_dir is not None:
                 sampler_info.bind(output_dir=output_dir)
-
+            sampler = instantiate(sampler_info)
             train_model_info = configs["train_model"]
-
-            data_sampler = instantiate(sampler_info)
-
-            train_model_info.bind(
-                model=model,
-                data_sampler=data_sampler,
-                loss_criterion=loss,
-                optimizer_class=optim,
-                optimizer_kwargs=optim_kwargs)
+            train_model_info.bind(model=model,
+                                  data_sampler=sampler,
+                                  loss_criterion=loss,
+                                  optimizer_class=optim,
+                                  optimizer_kwargs=optim_kwargs)
             if output_dir is not None:
                 train_model_info.bind(output_dir=output_dir)
             trainer = instantiate(train_model_info)
-            trainer.train_and_validate()
             # TODO: will find a better way to handle this in the future
             if "load_test_set" in configs and configs["load_test_set"] and \
                     "evaluate" in operations:
                 trainer.create_test_set()
+            trainer.train_and_validate()
 
         elif op == "evaluate":
             if trainer is not None:
@@ -202,18 +206,17 @@ def execute(operations, configs, output_dir):
                     configs["model"], output_dir, train=False)
             if "evaluate_model" in configs:
                 sampler_info = configs["sampler"]
-
+                sampler = instantiate(sampler_info)
                 evaluate_model_info = configs["evaluate_model"]
-
-                data_sampler = instantiate(sampler_info)
                 evaluate_model_info.bind(
                     model=model,
                     criterion=loss,
-                    data_sampler=data_sampler)
+                    data_sampler=sampler)
                 if output_dir is not None:
                     evaluate_model_info.bind(output_dir=output_dir)
-                evaluator = instantiate(evaluate_model_info)
-                evaluator.evaluate()
+
+                evaluate_model = instantiate(evaluate_model_info)
+                evaluate_model.evaluate()
 
         elif op == "analyze":
             if not model:
@@ -222,8 +225,8 @@ def execute(operations, configs, output_dir):
 
             analyze_seqs_info = configs["analyze_sequences"]
             analyze_seqs_info.bind(model=model)
-            analyze_seqs = instantiate(analyze_seqs_info)
 
+            analyze_seqs = instantiate(analyze_seqs_info)
             if "variant_effect_prediction" in configs:
                 vareff_info = configs["variant_effect_prediction"]
                 if "vcf_files" not in vareff_info:
@@ -321,12 +324,13 @@ def parse_configs_and_run(configs_file,
               "({0}, not {1}).".format(lr, configs["lr"]))
 
     current_run_output_dir = None
-    if "output_dir" not in configs:
+    if "output_dir" not in configs and \
+            ("train" in operations or "evaluate" in operations):
         print("No top-level output directory specified. All constructors "
               "to be initialized (e.g. Sampler, TrainModel) that require "
               "this parameter must have it specified in their individual "
               "parameter configuration.")
-    else:
+    elif "output_dir" in configs:
         current_run_output_dir = configs["output_dir"]
         os.makedirs(current_run_output_dir, exist_ok=True)
         if "create_subdirectory" in configs:
