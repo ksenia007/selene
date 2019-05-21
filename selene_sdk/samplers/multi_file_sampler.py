@@ -232,5 +232,6 @@ class MultiFileSampler(Sampler):
             self._samplers[mode].save_dataset_to_file(
                 close_filehandle=close_filehandle)
         except AttributeError:
-            print("Sampler for mode {0} does not have a method for "
-                  "saving the sampled data.".format(mode), flush=True)
+            print("Called `save_dataset_to_file` on a sampler for mode {0} "
+                  "that does not have a method for saving the sampled "
+                  "data.".format(mode), flush=True)
