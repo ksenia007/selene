@@ -80,8 +80,6 @@ class TrainModel(object):
         constructor.
     batch_size : int
         Specify the batch size to process examples. Should be a power of 2.
-    max_steps : int
-        The maximum number of mini-batches to iterate over.
     report_stats_every_n_steps : int
         The frequency with which to report summary statistics. You can
         set this value to be equivalent to a training epoch
@@ -162,8 +160,6 @@ class TrainModel(object):
         The optimizer to minimize loss with.
     batch_size : int
         The size of the mini-batch to use during training.
-    max_steps : int
-        The maximum number of mini-batches to iterate over.
     nth_step_report_stats : int
         The frequency with which to report summary statistics.
     nth_step_save_checkpoint : int
@@ -193,7 +189,6 @@ class TrainModel(object):
                  batch_size,
                  report_stats_every_n_steps,
                  output_dir,
-                 max_steps=None,
                  save_checkpoint_every_n_steps=1000,
                  save_new_checkpoints_after_n_steps=None,
                  report_gt_feature_n_positives=10,
@@ -217,7 +212,6 @@ class TrainModel(object):
             self.model.parameters(), **optimizer_kwargs)
         print("optim: {0}".format(optimizer_class))
         self.batch_size = batch_size
-        self.max_steps = max_steps
         self.nth_step_report_stats = report_stats_every_n_steps
         self.nth_step_save_checkpoint = None
         if not save_checkpoint_every_n_steps:
@@ -226,14 +220,6 @@ class TrainModel(object):
             self.nth_step_save_checkpoint = save_checkpoint_every_n_steps
 
         self.save_new_checkpoints = save_new_checkpoints_after_n_steps
-        """
-        logger.info("Training parameters set: batch size {0}, "
-                    "number of steps per 'epoch': {1}, "
-                    "maximum number of steps: {2}".format(
-                        self.batch_size,
-                        self.nth_step_report_stats,
-                        self.max_steps))
-        """
         torch.set_num_threads(1)  #cpu_n_threads)
 
         self.use_cuda = use_cuda
@@ -283,11 +269,6 @@ class TrainModel(object):
 
             self.model = load_model_from_state_dict(
                 checkpoint["state_dict"], self.model)
-            """
-            self._start_step = checkpoint["step"]
-            if self._start_step >= self.max_steps:
-                self.max_steps += self._start_step
-            """
             self._min_loss = checkpoint["min_loss"]
             self.optimizer.load_state_dict(
                 checkpoint["optimizer"])
@@ -307,11 +288,8 @@ class TrainModel(object):
                 "{0}.validation".format(__name__), self.output_dir)
 
         self._train_logger.info("loss")
-        # TODO: this makes the assumption that all models will report ROC AUC,
-        # which is not the case.
         self._validation_logger.info("\t".join(["loss"] +
             sorted([x for x in self._validation_metrics.metrics.keys()])))
-
 
     def _create_validation_set(self, n_samples=None, compute_metrics_on=None):
         """
@@ -329,7 +307,6 @@ class TrainModel(object):
         self._all_validation_seqs, self._all_validation_targets = \
             self.sampler.get_validation_set(
                 self.batch_size, n_samples=n_samples)
-
 
         n_cols = self._all_validation_targets.shape[1]
         if compute_metrics_on and isinstance(compute_metrics_on, list):
@@ -399,7 +376,7 @@ class TrainModel(object):
         """
         min_loss = self._min_loss
         scheduler = ReduceLROnPlateau(
-            self.optimizer, 'max', patience=16, verbose=True,
+            self.optimizer, 'max', patience=32, verbose=True,
             factor=0.8)
 
         self.model.train()
@@ -412,13 +389,16 @@ class TrainModel(object):
                 inputs, targets = inputs.cuda(), targets.cuda()
 
             predictions = self.model(inputs.transpose(1, 2))
+            assert (predictions.data.cpu().numpy().all() >= 0. and
+                    predictions.data.cpu().numpy().all() <= 1.)
+            assert (targets.data.cpu().numpy().all() >= 0. and
+                    targets.data.cpu().numpy().all() <= 1.)
             loss = self.criterion(predictions, targets)
             self.optimizer.zero_grad()
 
             loss.backward()
             self.optimizer.step()
             loss_value = loss.item()
-
             t_f = time()
             if i % 100 == 0:
                 logger.debug("{0}: {1} s to propagate sample".format(i, t_f - t_i))
