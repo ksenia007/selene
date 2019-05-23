@@ -83,7 +83,8 @@ class MatFileSampler(FileSampler):
                  shuffle=True,
                  sequence_batch_axis=0,
                  sequence_alphabet_axis=1,
-                 targets_batch_axis=0):
+                 targets_batch_axis=0,
+                 unpackbits=False):
         """
         Constructs a new `MatFileSampler` object.
         """
@@ -111,6 +112,8 @@ class MatFileSampler(FileSampler):
         self._shuffle = shuffle
         if self._shuffle:
             np.random.shuffle(self._sample_indices)
+
+        self.unpackbits = unpackbits
 
     def sample(self, batch_size=1):
         """
@@ -157,10 +160,11 @@ class MatFileSampler(FileSampler):
                 sequences, (self._seq_batch_axis,
                             self._seq_final_axis,
                             self._seq_alphabet_axis))
-        sequences = np.unpackbits(sequences,axis=-2)
-        nulls = np.sum(sequences, axis=-1) == 4
-        sequences = sequences.astype(float)
-        sequences[nulls, :] = 0.25
+        if self.unpackbits:
+            sequences = np.unpackbits(sequences, axis=-2)
+            nulls = np.sum(sequences, axis=-1) == 4
+            sequences = sequences.astype(float)
+            sequences[nulls, :] = 0.25
 
         if self._sample_tgts is not None:
             if self._tgts_batch_axis == 0:
@@ -169,7 +173,8 @@ class MatFileSampler(FileSampler):
                 targets = self._sample_tgts[:, use_indices]
                 targets = np.transpose(
                     targets, (1, 0))
-            targets = np.unpackbits(targets,axis=-1).astype(bool)
+            if self.unpackbits:
+                targets = np.unpackbits(targets,axis=-1).astype(bool)
             return (sequences, targets)
         return sequences,
 
