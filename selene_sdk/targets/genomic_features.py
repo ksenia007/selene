@@ -17,7 +17,7 @@ import tabix
 import numpy as np
 
 from .target import Target
-from ._genomic_features import _fast_get_feature_data
+#from ._genomic_features import _fast_get_feature_data
 
 
 def _any_positive_rows(rows, start, end, thresholds):
@@ -132,10 +132,13 @@ def _get_feature_data(start, end, bin_size, step_size,
         `i`th feature is positive, and zero otherwise.
 
     """
-    return _fast_get_feature_data(
+    raise NotImplementedError
+    """
+    _fast_get_feature_data(
         start, end,
         bin_size, step_size,
         feature_index_dict, rows)
+    """
 
 
 def _define_feature_thresholds(feature_thresholds, features):
