@@ -208,7 +208,7 @@ class EvaluateModel(object):
         self._metrics.visualize(
             all_predictions, self._test_targets, self.output_dir)
 
-        del self._test_targets
+        #del self._test_targets
 
         loss = np.average(batch_losses)
         logger.info("test loss: {0}".format(loss))
