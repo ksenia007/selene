@@ -290,11 +290,14 @@ class RandomPositionsSampler(OnlineSampler):
             return None
 
         # retrieve additonal information from BW files
-        additional_info = np.zeros((self.sequence_length, len(self.all_bw_files)))
-        for i, score_file in enumerate(self.all_bw_files):
-            score_array = np.array(score_file.values(chrom, window_start, window_end), dtype=np.float64)
-            score_array[np.isnan(score_array)] = 0
-            additional_info[:, i] = np.round(score_array, 5)
+        if (not self.all_bw_files is None) and len(self.all_bw_files)>0:
+            additional_info = np.zeros((self.sequence_length, len(self.all_bw_files)))
+            for i, score_file in enumerate(self.all_bw_files):
+                score_array = np.array(score_file.values(chrom, window_start, window_end), dtype=np.float64)
+                score_array[np.isnan(score_array)] = 0
+                additional_info[:, i] = np.round(score_array, 5)
+        else:
+            additional_info = None
 
         retrieved_targets = self.target.get_feature_data(
             chrom, bin_start, bin_end)
@@ -373,7 +376,8 @@ class RandomPositionsSampler(OnlineSampler):
             if not retrieve_output:
                 continue
             seq, seq_targets, addi = retrieve_output
-            seq = np.concatenate((seq, addi), axis=1)
+            if not addi is None:
+                seq = np.concatenate((seq, addi), axis=1)
             sequences[n_samples_drawn, :, :] = seq
             targets[n_samples_drawn, :] = seq_targets
             #additional_info[n_samples_drawn, :, :] = addi
