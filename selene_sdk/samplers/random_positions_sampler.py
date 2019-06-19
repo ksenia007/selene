@@ -11,6 +11,8 @@ from time import time
 
 import numpy as np
 
+import pyBigWig
+
 from .online_sampler import OnlineSampler
 from ..utils import get_indices_and_probabilities
 
@@ -140,7 +142,8 @@ class RandomPositionsSampler(OnlineSampler):
                  feature_thresholds=0.5,
                  mode="train",
                  save_datasets=[],
-                 output_dir=None):
+                 output_dir=None,
+                 additional_bw_files=None):
         super(RandomPositionsSampler, self).__init__(
             reference_sequence,
             target_path,
@@ -167,6 +170,14 @@ class RandomPositionsSampler(OnlineSampler):
         self.sample_from_intervals = []
         self.interval_lengths = []
         self.initialized = False
+
+        #add additional bigWig files
+        self.all_bw_files = []
+        if not additional_bw_files is None:
+            for file_name in additional_bw_files:
+                self.all_bw_files.append(pyBigWig.open(file_name))
+
+
 
     def init(func):
         # delay initialization to allow multiprocessing
@@ -278,6 +289,13 @@ class RandomPositionsSampler(OnlineSampler):
                       self.sequence_length))
             return None
 
+        # retrieve additonal information from BW files
+        additional_info = np.zeros((self.sequence_length, len(self.all_bw_files)))
+        for i, score_file in enumerate(self.all_bw_files):
+            score_array = np.array(score_file.values(chrom, window_start, window_end))
+            score_array[np.isnan(score_array)] = 0
+            additional_info[:, i] = score_array
+
         retrieved_targets = self.target.get_feature_data(
             chrom, bin_start, bin_end)
         if self.mode in self._save_datasets:
@@ -291,7 +309,7 @@ class RandomPositionsSampler(OnlineSampler):
                  feature_indices])
             if len(self._save_datasets[self.mode]) > 200000:
                 self.save_dataset_to_file(self.mode)
-        return (retrieved_seq, retrieved_targets)
+        return (retrieved_seq, retrieved_targets, additional_info)
 
     def _update_randcache(self, mode=None):
         if not mode:
@@ -328,8 +346,10 @@ class RandomPositionsSampler(OnlineSampler):
             where :math:`F` is the number of features.
 
         """
-        sequences = None
-        targets = None
+        sequences = np.zeros((batch_size, self.sequence_length, 4))
+        targets = np.zeros((batch_size, self.n_features))
+        additional_info = np.zeros((batch_size, self.sequence_length, len(self.all_bw_files)))
+
         n_samples_drawn = 0
         while n_samples_drawn < batch_size:
             sample_index = self._randcache[self.mode]["sample_next"]
@@ -347,15 +367,14 @@ class RandomPositionsSampler(OnlineSampler):
             chrom = interval_info[0]
             position = int(
                 interval_info[1] + random.uniform(0, 1) * interval_length)
+            
 
             retrieve_output = self._retrieve(chrom, position)
             if not retrieve_output:
                 continue
-            seq, seq_targets = retrieve_output
-            if sequences is None and targets is None:
-                sequences = np.zeros((batch_size, seq.shape[0], seq.shape[1]), dtype=float)
-                targets = np.zeros((batch_size, self.n_features * self.n_bins), dtype=float)
+            seq, seq_targets, addi = retrieve_output
             sequences[n_samples_drawn, :, :] = seq
             targets[n_samples_drawn, :] = seq_targets
+            additional_info[n_samples_drawn, :, :] = addi
             n_samples_drawn += 1
-        return (sequences, targets)
+        return (sequences, targets, additional_info)
