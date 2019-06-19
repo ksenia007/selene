@@ -346,9 +346,9 @@ class RandomPositionsSampler(OnlineSampler):
             where :math:`F` is the number of features.
 
         """
-        sequences = np.zeros((batch_size, self.sequence_length, 4))
+        sequences = np.zeros((batch_size, self.sequence_length, 4+len(self.all_bw_files)))
         targets = np.zeros((batch_size, self.n_features))
-        additional_info = np.zeros((batch_size, self.sequence_length, len(self.all_bw_files)))
+        #additional_info = np.zeros((batch_size, self.sequence_length, len(self.all_bw_files)))
 
         n_samples_drawn = 0
         while n_samples_drawn < batch_size:
@@ -373,8 +373,9 @@ class RandomPositionsSampler(OnlineSampler):
             if not retrieve_output:
                 continue
             seq, seq_targets, addi = retrieve_output
+            seq = np.concatenate((seq, addi), axis=1)
             sequences[n_samples_drawn, :, :] = seq
             targets[n_samples_drawn, :] = seq_targets
-            additional_info[n_samples_drawn, :, :] = addi
+            #additional_info[n_samples_drawn, :, :] = addi
             n_samples_drawn += 1
-        return (sequences, targets, additional_info)
+        return (sequences, targets)
