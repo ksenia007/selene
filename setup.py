@@ -25,12 +25,7 @@ genome_module = Extension(
     ["selene_sdk/sequences/_sequence" + ext],
     include_dirs=[np.get_include()])
 
-genomic_features_module = Extension(
-    "selene_sdk.targets._genomic_features",
-    ["selene_sdk/targets/_genomic_features" + ext],
-    include_dirs=[np.get_include()])
-
-ext_modules = [genome_module, genomic_features_module]
+ext_modules = [genome_module]
 cmdclass = {'build_ext': build_ext} if USING_CYTHON else {}
 
 setup(name="selene-sdk",
