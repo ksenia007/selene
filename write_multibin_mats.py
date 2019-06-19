@@ -58,9 +58,10 @@ if __name__ == "__main__":
             if i % 50 == 0:
                 print("processing step {0} for {1} records".format(i, arguments["<mode>"]))
             sequences, targets, additional_data = data_sampler.sample(batch_size=configs["batch_size"])
+            sequences = np.concatenate((sequences, additional_data), axis = 2)
             sequences_length = sequences.shape[1]
             targets_length = targets.shape[1]
-            addi_length = additional_data.shape[1]
+
             if packbits:
                 sequences = np.packbits(sequences > 0, axis=1)
                 targets = np.packbits(targets > 0, axis=1)
@@ -81,12 +82,6 @@ if __name__ == "__main__":
                          sequences.shape[1],
                          sequences.shape[2]),
                         dtype='float')
-                    addi = fh.create_dataset(
-                        "additional_data",
-                        (configs["batch_size"] * n_steps,
-                         additional_data.shape[1],
-                         additional_data.shape[2]),
-                        dtype='float')
             if tgts is None:
                 # deepsea2 n_features: 2002 * 495
                 # cistrome mouse n_features: 16441 * 248
@@ -97,4 +92,3 @@ if __name__ == "__main__":
                     dtype='uint8')
             seqs[i*configs["batch_size"]:(i+1)*configs["batch_size"]] = sequences
             tgts[i*configs["batch_size"]:(i+1)*configs["batch_size"],:] = targets
-            addi[i*configs["batch_size"]:(i+1)*configs["batch_size"]] = additional_data
