@@ -418,7 +418,11 @@ class TrainModel(object):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            loss_value = loss.item()
+
+            if not self.disable_scheduler:
+                scheduler.step()
+
+            loss_value = loss
             t_f = time()
 
             if self.multidatasets:
@@ -453,8 +457,8 @@ class TrainModel(object):
                                  "of steps per second: {1:.1f}").format(
                         i, 1. / np.average(time_per_step)))
                     time_per_step = []
-                    self._train_logger.info(loss_value)
-                    logger.info("training loss: {0}".format(loss_value))
+                    self._train_logger.info(loss_value.item())
+                    logger.info("training loss: {0}".format(loss_value.item()))
                     valid_scores = self.validate()
                     if self.multidatasets:
                         #TODO: deal with this better
@@ -475,8 +479,6 @@ class TrainModel(object):
                         else:
                             to_log.append("NA")
                     self._validation_logger.info("\t".join(to_log))
-                    if not self.disable_scheduler:
-                        scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
 
                     if validation_loss < min_loss:
                         min_loss = validation_loss
