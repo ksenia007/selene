@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import CyclicLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from scipy.stats import rankdata
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import average_precision_score
@@ -204,17 +204,10 @@ class TrainModel(object):
                               average_precision=average_precision_score),
                  compute_metrics_on=None,
                  multidatasets=False,
-                 disable_scheduler=False, 
-                 scheduler_min=0,
-                 scheduler_max=0,
-                 scheduler_step=0):
+                 disable_scheduler=False):
         """
         Constructs a new `TrainModel` object.
         """
-
-        self.scheduler_min = scheduler_min
-        self.scheduler_max = scheduler_max
-        self.scheduler_step = scheduler_step
         self.model = model
         self.sampler = data_sampler
         self.criterion = loss_criterion
@@ -389,8 +382,9 @@ class TrainModel(object):
         """
         min_loss = self._min_loss
         if not self.disable_scheduler:
-            scheduler = CyclicLR(
-                self.optimizer, self.scheduler_min, self.scheduler_max,step_size_down=4000)
+            scheduler = ReduceLROnPlateau(
+                self.optimizer, 'max', patience=24, verbose=True,
+                factor=0.8)
 
         self.model.train()
         time_per_step = []
