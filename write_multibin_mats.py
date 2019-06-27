@@ -72,15 +72,17 @@ if __name__ == "__main__":
                     seqs = fh.create_dataset(
                         "sequences",
                         (configs["batch_size"] * n_steps,
-                         sequences.shape[1],
-                         sequences.shape[2]),
+                         sequences.shape[1], 
+                         sequences.shape[2],
+                         sequences.shape[3]),
                         dtype='uint8')
                 else:
                     seqs = fh.create_dataset(
                         "sequences",
                         (configs["batch_size"] * n_steps,
-                         sequences.shape[1],
-                         sequences.shape[2]),
+                        sequences.shape[1],
+                         sequences.shape[2],
+                         sequences.shape[3]),
                         dtype='float')
             if tgts is None:
                 # deepsea2 n_features: 2002 * 495
