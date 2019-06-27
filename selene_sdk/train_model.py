@@ -403,7 +403,7 @@ class TrainModel(object):
                     except:
                         self.model.current_classifier = self._train_sampler.current_dataset
 
-            predictions = self.model.forward(inputs.transpose(1, 2))
+            predictions = self.model.forward(inputs)
             assert (predictions.data.cpu().numpy().all() >= 0. and
                     predictions.data.cpu().numpy().all() <= 1.)
             assert (targets.data.cpu().numpy().all() >= 0. and
@@ -509,7 +509,7 @@ class TrainModel(object):
         inputs = Variable(inputs)
         targets = Variable(targets)
 
-        predictions = self.model(inputs.transpose(1, 2))
+        predictions = self.model(inputs)
         loss = self.criterion(predictions, targets)
 
         self.optimizer.zero_grad()
@@ -559,8 +559,7 @@ class TrainModel(object):
             with torch.no_grad():
                 inputs = Variable(inputs)
                 targets = Variable(targets)
-                predictions = self.model(
-                    inputs.transpose(1, 2))
+                predictions = self.model(inputs)
                 loss = self.criterion(predictions, targets)
 
                 all_predictions[count:count + remainder, :] = \
