@@ -275,7 +275,7 @@ class RandomPositionsSamplerMatrix(OnlineSampler):
             where :math:`F` is the number of features.
 
         """
-        sequences = np.zeros((batch_size, 4, 1, self.sequence_length))
+        sequences = np.zeros((batch_size, 4, self.sequence_length))
         targets = np.zeros((batch_size, self.n_features))
 
         n_samples_drawn = 0
@@ -303,7 +303,7 @@ class RandomPositionsSamplerMatrix(OnlineSampler):
             seq, seq_targets, addi = retrieve_output
             if not addi is None:
                 seq = np.concatenate((seq, addi), axis=1)
-            sequences[n_samples_drawn, :, :, :] = np.expand_dims(np.transpose(seq), axis=1)
+            sequences[n_samples_drawn, :, :] = np.transpose(seq)
             targets[n_samples_drawn, :] = seq_targets
             n_samples_drawn += 1
         return (sequences, targets)
