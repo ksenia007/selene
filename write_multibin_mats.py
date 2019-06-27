@@ -59,7 +59,7 @@ if __name__ == "__main__":
                 print("processing step {0} for {1} records".format(i, arguments["<mode>"]))
             sequences, targets = data_sampler.sample(batch_size=configs["batch_size"])
             #sequences = np.concatenate((sequences, additional_data), axis = 2)
-            sequences_length = sequences.shape[1]
+            sequences_length = sequences.shape[3]
             targets_length = targets.shape[1]
 
             if packbits:
