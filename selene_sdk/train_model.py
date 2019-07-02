@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import CyclicLR
 from scipy.stats import rankdata
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import average_precision_score
@@ -204,7 +205,8 @@ class TrainModel(object):
                               average_precision=average_precision_score),
                  compute_metrics_on=None,
                  multidatasets=False,
-                 disable_scheduler=False):
+                 disable_scheduler=False,
+                 plateau = False):
         """
         Constructs a new `TrainModel` object.
         """
@@ -296,6 +298,8 @@ class TrainModel(object):
 
         self.multidatasets  = multidatasets
         self.disable_scheduler = disable_scheduler
+        self.plateau = plateau
+        self.scheduler=None
 
     def _create_validation_set(self, n_samples=None, compute_metrics_on=None):
         """
@@ -382,9 +386,14 @@ class TrainModel(object):
         """
         min_loss = self._min_loss
         if not self.disable_scheduler:
-            scheduler = ReduceLROnPlateau(
-                self.optimizer, 'max', patience=24, verbose=True,
-                factor=0.8)
+            ####################################### TEMP
+            if self.plateau:
+                self.cheduler = ReduceLROnPlateau(
+                    self.optimizer, 'max', patience=24, verbose=True,
+                    factor=0.8)
+            else: 
+                self.scheduler = CyclicLR(
+                    self.optimizer, base_lr=0.005, max_lr=0.1)
 
         self.model.train()
         time_per_step = []
@@ -469,8 +478,8 @@ class TrainModel(object):
                         else:
                             to_log.append("NA")
                     self._validation_logger.info("\t".join(to_log))
-                    if not self.disable_scheduler:
-                        scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
+                    if not self.disable_scheduler and self.plateau:
+                        self.scheduler.step(math.ceil(validation_loss * 1000.0) / 1000.0)
 
                     if validation_loss < min_loss:
                         min_loss = validation_loss
@@ -516,6 +525,8 @@ class TrainModel(object):
 
         loss.backward()
         self.optimizer.step()
+        if not self.plateau:
+            self.scheduler.step()
         loss_value = loss.item()
 
         # reduce memory usage
